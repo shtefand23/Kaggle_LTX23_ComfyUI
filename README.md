@@ -67,10 +67,37 @@
 - **Общий pip-пакет** — `install_common_extras()` в `instal_comfyui.py`.
 - **Флаги запуска ComfyUI** — метод `_start_comfy()` в `start.py`.
 
+## Модели
+
+### Flux2 Dev (GGUF)
+- `flux2-dev-Q4_0.gguf` — основная модель (diffusion model)
+- `mistral_3_small_flux2_fp8.safetensors` — текст-энкодер (CLIP)
+- `flux2-vae.safetensors` — VAE
+
+### LTX 2.3 Video (FP8)
+- `ltx-2.3-22b-distilled-1.1-fp8mixed.safetensors` — основная модель
+- `gemma-3-12b-it-heretic-fp4-comfy.safetensors` — текст-энкодер
+- `ltx-2.3_text_projection_bf16.safetensors` — текст-проекция
+- `LTX23_video_vae_bf16.safetensors` — видео-VAE
+- `LTX23_audio_vae_bf16.safetensors` — аудио-VAE
+- `taeltx2_3.safetensors` — VAE
+- `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` — апскейлер
+- `LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors` — LoRA (говорящая голова)
+- `LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors` — LoRA
+
 ## Установленные ноды (по умолчанию)
 
-Crystools, ComfyUI-GGUF, ComfyUI-Logic, comfy-image-saver, ComfyUI-QwenVL,
-ComfyUI-MultiGPU, ComfyUI-KJNodes, ComfyUI_FL-CosyVoice3 + ComfyUI-Manager.
+| Нода | Назначение |
+|------|-----------|
+| ComfyUI-Crystools | Мониторинг GPU |
+| ComfyUI-GGUF | Загрузка GGUF-моделей |
+| ComfyUI-Logic | Логические операции |
+| comfy-image-saver | Сохранение изображений |
+| ComfyUI-MultiGPU | Multi-GPU (DisTorch2) |
+| ComfyUI-KJNodes | Утилиты (маски, латенты, пайплайны) |
+| ComfyUI_FL-CosyVoice3 | TTS (синтез/клонирование речи) |
+| WhatDreamsCost-ComfyUI | LTX 2.3 Director (таймлайн-оркестратор) |
+| ComfyUI-Manager | Менеджер нод |
 
 ## Для агентов
 

@@ -43,13 +43,14 @@ CUSTOM_NODES = {
     "ComfyUI-GGUF":       "https://github.com/city96/ComfyUI-GGUF.git",
     "ComfyUI-Logic":      "https://github.com/theUpsider/ComfyUI-Logic.git",
     "comfy-image-saver":  "https://github.com/giriss/comfy-image-saver.git",
-    "ComfyUI-QwenVL":     "https://github.com/1038lab/ComfyUI-QwenVL.git",
     # Официальная мульти-GPU нода (DisTorch2). Заменяет ComfyBootlegOffload.py.
     "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
     # KJNodes — большой набор утилитарных нод (маски, латенты, пайплайны и т.д.).
     "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
     # FL-CosyVoice3 — синтез/клонирование речи (TTS) внутри графа ComfyUI.
     "ComfyUI_FL-CosyVoice3": "https://github.com/filliptm/ComfyUI_FL-CosyVoice3.git",
+    # Ltx 2.3 Director
+    "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
 }
 
 # ----------------------------------------------------------------------
@@ -57,7 +58,7 @@ CUSTOM_NODES = {
 # Это твой раздел: меняй пути под свои датасеты/модели.
 # ----------------------------------------------------------------------
 SYMLINKS = [
-    # (источник, назначение)
+    # (Flux2)
     ("/kaggle/input/datasets/theangel/flux2-dev32b/flux2-dev-Q4_0.gguf",
      f"{COMFY_DIR}/models/diffusion_models/flux2-dev-Q4_0.gguf"),
 
@@ -66,6 +67,33 @@ SYMLINKS = [
 
     ("/kaggle/input/datasets/theangel/flux2-dev32b/flux2-vae.safetensors",
      f"{COMFY_DIR}/models/vae/flux2-vae.safetensors"),
+    # (Ltx 2.3 video)
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/gemma-3-12b-it-heretic-fp4-comfy.safetensors",
+     f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-heretic-fp4-comfy.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/ltx-2.3_text_projection_bf16.safetensors",
+     f"{COMFY_DIR}/models/text_encoders/ltx-2.3_text_projection_bf16.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/LTX23_audio_vae_bf16.safetensors",
+     f"{COMFY_DIR}/models/vae/LTX23_audio_vae_bf16.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/LTX23_video_vae_bf16.safetensors",
+     f"{COMFY_DIR}/models/vae/LTX23_video_vae_bf16.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/taeltx2_3.safetensors",
+     f"{COMFY_DIR}/models/vae/taeltx2_3.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/ltx-2.3-22b-distilled-1.1-fp8mixed.safetensors",
+     f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-fp8mixed.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+     f"{COMFY_DIR}/models/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors",
+     f"{COMFY_DIR}/models/loras/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors"),
+
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/2/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors",
+     f"{COMFY_DIR}/models/loras/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors"),
 ]
 
 
