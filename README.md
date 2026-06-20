@@ -7,9 +7,6 @@
 
 [![Поддержать проект](https://img.shields.io/badge/💖_Поддержать-Boosty-f15f2c?style=for-the-badge)](https://boosty.to/the_angel/donate)
 [![ВКонтакте](https://img.shields.io/badge/Сообщество-ВКонтакте-0077FF?style=for-the-badge&logo=vk)](https://vk.com/theangel_lab)
-[![GPU](https://img.shields.io/badge/GPU-2%C3%97_Tesla_T4-76B900?style=for-the-badge&logo=nvidia)]()
-[![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)]()
-[![torch](https://img.shields.io/badge/torch-cu130-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)]()
 
 ---
 
