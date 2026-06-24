@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kaggle_Workspace_FreeGPU — ComfyUI на 2× Tesla T4 бесплатно</title>
+  <meta name="description" content="Запуск ComfyUI (Flux2 GGUF, LTX 2.3 Video, TTS) на бесплатных 2× Tesla T4 в Kaggle. Без своего GPU, без оплаты облака, через идемпотентные скрипты.">
+  <meta name="theme-color" content="#6366f1">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%81%EF%B8%8F%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <a class="skip-link" href="#main">Перейти к содержимому</a>
+
+  <header class="hero" role="banner">
+    <div class="hero-inner">
+      <span class="hero-badge">☁️ Kaggle Cloud · THE ANGEL AI</span>
+      <h1>ComfyUI на бесплатных<br><span class="accent-text">2× Tesla T4</span></h1>
+      <p class="hero-subtitle">Flux2 GGUF · LTX 2.3 Video · TTS — без своего GPU, без оплаты облака,<br>через идемпотентные скрипты и публичный туннель.</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.3c-3.3.7-4-1.6-4-1.6-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.2 1.9 1.2 1.1 1.9 2.9 1.4 3.6 1 .1-.8.4-1.4.8-1.7-2.7-.3-5.5-1.3-5.5-6 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.7-2.8 5.7-5.5 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+          GitHub
+        </a>
+        <a class="btn btn-secondary" href="https://boosty.to/the_angel/donate">💖 Поддержать</a>
+      </div>
+      <div class="hero-tech">
+        <span>Python 3.12</span>
+        <span>torch cu130</span>
+        <span>uv</span>
+        <span>ComfyUI 0.24+</span>
+        <span>2× Tesla T4</span>
+      </div>
+    </div>
+    <div class="hero-glow" aria-hidden="true"></div>
+  </header>
+
+  <main id="main">
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Что внутри</span>
+        <h2>Готовый пайплайн на трёх скриптах</h2>
+        <p class="section-subtitle">Никакой ручной возни с окружением — всё идемпотентно, всё само чинится.</p>
+      </div>
+      <div class="cards-grid">
+        <article class="card">
+          <div class="card-icon">🚀</div>
+          <h3>Запуск одной строкой</h3>
+          <p>Три скрипта в <code>instal/</code>: окружение, ноды, запуск. Через пару минут — публичная ссылка на работающий ComfyUI.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">🛡️</div>
+          <h3>Самовосстановление окружения</h3>
+          <p>venv после рестарта Kaggle самовосстанавливается за секунды. Никаких повторных установок torch на каждом старте.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">⚡</div>
+          <h3>Оптимизировано под T4</h3>
+          <p><code>torch cu130</code> под драйвер 580.x, нативный SDPA вместо нерабочего на Turing xformers.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">🧩</div>
+          <h3>DisTorch2 на двух картах</h3>
+          <p>ComfyUI-MultiGPU распределяет слои между двумя T4 и CPU. Никаких хаков и конфликтов внимания.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">📦</div>
+          <h3>Модели через симлинки</h3>
+          <p>Flux2 GGUF и LTX 2.3 из <code>/kaggle/input</code>. Один раз скопировал датасет — дальше мгновенный старт.</p>
+        </article>
+        <article class="card">
+          <div class="card-icon">🔗</div>
+          <h3>Публичный URL из ячейки</h3>
+          <p>Cloudflare-туннель прямо из блокнота. Делитесь ссылкой без проброса портов и белого IP.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section section-quickstart">
+      <div class="section-header">
+        <span class="section-eyebrow">Быстрый старт</span>
+        <h2>Три ячейки — и ComfyUI работает</h2>
+        <p class="section-subtitle">В Kaggle-блокноте, с включённым GPU T4 ×2 и интернетом.</p>
+      </div>
+      <div class="quickstart-block">
+<pre><code><span class="prompt"># 0.</span> Скрипты из репозитория (или обновить, если уже склонировано)
+!git clone https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU.git || \
+  git -C Kaggle_Workspace_FreeGPU pull
+
+<span class="prompt"># 1.</span> Окружение: uv + venv (Python 3.12) + torch cu130 + ComfyUI + Manager
+!python Kaggle_Workspace_FreeGPU/instal/instal_comfyui.py
+
+<span class="prompt"># 2.</span> Кастомные ноды + симлинки на модели из /kaggle/input
+!python Kaggle_Workspace_FreeGPU/instal/instal_castom_node.py
+
+<span class="prompt"># 3.</span> Запуск + Cloudflare-туннель + keep-alive кнопки
+%run Kaggle_Workspace_FreeGPU/instal/start.py</code></pre>
+      </div>
+      <p class="quickstart-note">Можно одной строкой: <code>%run .../instal/start.py</code> сам проверит окружение и вызовет нужный установщик автоматически — для холодного старта этого достаточно.</p>
+    </section>
+
+    <section class="section">
+      <div class="section-header">
+        <span class="section-eyebrow">Примеры</span>
+        <h2>Готовые воркфлоу и блокноты</h2>
+        <p class="section-subtitle">Сообщество открыто делится графами и блокнотами — посмотрите, что уже работает.</p>
+      </div>
+      <div class="examples-grid">
+        <a class="example-card" href="https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU/tree/main/workflows">
+          <div class="example-icon">🎨</div>
+          <div class="example-body">
+            <h3>Воркфлоу ComfyUI</h3>
+            <p>Flux2 GGUF, LTX 2.3 Director — графы в <code>workflows/</code>, готовы к запуску.</p>
+            <span class="example-arrow" aria-hidden="true">→</span>
+          </div>
+        </a>
+        <a class="example-card" href="https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU/tree/main/Notebook">
+          <div class="example-icon">📓</div>
+          <div class="example-body">
+            <h3>Блокноты</h3>
+            <p><code>.ipynb</code> с готовой последовательностью ячеек в <code>Notebook/</code>.</p>
+            <span class="example-arrow" aria-hidden="true">→</span>
+          </div>
+        </a>
+      </div>
+    </section>
+
+    <section class="section section-cta">
+      <h2>Готовы попробовать?</h2>
+      <p>Скопируйте три ячейки в свой Kaggle-блокнот — через пару минут будет публичный ComfyUI.</p>
+      <div class="section-cta-buttons">
+        <a class="btn btn-primary" href="https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU">Открыть репозиторий</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div class="footer-brand">
+        <strong>THE ANGEL AI</strong>
+        <span>сделано с ❤️ для тех, у кого нет своего GPU</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU">GitHub</a>
+        <a href="https://vk.com/theangel_lab">ВКонтакте</a>
+        <a href="https://boosty.to/the_angel/donate">Boosty</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

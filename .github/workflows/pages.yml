@@ -1,0 +1,46 @@
+name: Deploy GitHub Pages
+
+# Запускаем деплой ТОЛЬКО когда меняется содержимое папки docs-site/
+# или этот workflow-файл. Правки README/скриптов НЕ триггерят пересборку
+# Pages — это и было целью (раньше было 22+ мусорных деплоя на каждый коммит).
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'docs-site/**'
+      - '.github/workflows/pages.yml'
+  # Ручной запуск из вкладки Actions — на случай форсированного деплоя.
+  workflow_dispatch:
+
+# Pages нужны эти права для записи.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Один деплой за раз — если запускается второй, первый отменяется.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs-site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

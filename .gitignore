@@ -61,6 +61,7 @@ instal/docs/
 !instal/
 !workflows/
 !Notebook/
+!docs-site/
 instal/*
 !instal/instal_comfyui.py
 !instal/instal_castom_node.py
