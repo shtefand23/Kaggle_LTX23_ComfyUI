@@ -74,3 +74,12 @@ instal/*
 # (а не `.*`) — чтобы случайно не скрыть .env / .gitattributes / .nojekyll.
 .jbase
 .jkid
+
+# --- Vite / Node.js build артефакты (не для GitHub) ---
+# node_modules/ всегда генерируется `npm install`. dist/ — Vite build outDir.
+# docs-site/dist/ — конкретно наш build output (.gitignore правила см.
+# `!docs-site/` в whitelist выше — он не покрывает docs-site/dist!).
+node_modules/
+dist/
+docs-site/dist/
+.vite/

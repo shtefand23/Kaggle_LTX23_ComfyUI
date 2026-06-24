@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>THE ANGEL AI — редирект</title>
+  <style>
+    body {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      background: #05050A;
+      color: #00F0FF;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+    .wrap {
+      max-width: 36rem;
+      text-align: center;
+    }
+    h1 {
+      font-size: 1.25rem;
+      margin: 0 0 0.5rem;
+      letter-spacing: 0.05em;
+    }
+    p { color: #B8B8D4; margin: 0.25rem 0; }
+    code { color: #FF3DD8; }
+    .blink { animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+  <script>
+    // GitHub Pages SPA-fallback: пользователь пришёл на /Kaggle_Workspace_FreeGPU/news
+    // напрямую → GH Pages отдаёт 404.html → редиректим на / и сохраняем исходный URL
+    // в sessionStorage, чтобы index.html сделал replaceState на правильный маршрут.
+    (function () {
+      var repoBase = '/Kaggle_Workspace_FreeGPU';
+      var l = window.location;
+      var path = l.pathname;
+      // Если путь уже не содержит ничего после repoBase — просто в корень
+      if (path === repoBase || path === repoBase + '/') {
+        // уже в корне — ничего не делаем
+        return;
+      }
+      // Запоминаем канонический путь (без repoBase)
+      var subPath = path.slice(repoBase.length) + (l.search || '') + (l.hash || '');
+      try { sessionStorage.setItem('spa-redirect', subPath); } catch (_) { /* ignore */ }
+      // Редиректим на корень репо (index.html)
+      l.replace(repoBase + '/');
+    })();
+  </script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>THE ANGEL AI <span class="blink">_</span></h1>
+    <p>Восстанавливаю маршрут…</p>
+    <p><code id="from"></code></p>
+  </div>
+  <script>
+    var from = (sessionStorage.getItem('spa-redirect') || window.location.pathname);
+    document.getElementById('from').textContent = from;
+  </script>
+</body>
+</html>
