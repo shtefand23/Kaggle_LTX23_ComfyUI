@@ -174,6 +174,17 @@ Kaggle_Workspace_FreeGPU/
 
 ---
 
+
+## 🌐 Лендинг / GitHub Pages
+
+React-сайт проекта (Vite + React 19 + TypeScript + Framer Motion) живёт
+в **ветке [`site`](https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU/tree/site)**
+этого репозитория. Когда делаешь `git clone` репозитория для Kaggle — ветка
+`main` приходит со скриптами и workflow, **без тяжёлого кода сайта**. Сайт
+задеплоен через GitHub Actions именно из ветки `site`.
+
+---
+
 ## 💖 Поддержать проект
 
 Проект развивается силами **THE ANGEL AI** и остаётся бесплатным. Если он
