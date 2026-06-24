@@ -59,7 +59,7 @@ code {
   padding: 2px 7px;
   border-radius: 5px;
   border: 1px solid var(--border);
-  color: #d6dbf0;
+  color: var(--text);
 }
 
 /* Hero */
@@ -309,7 +309,7 @@ main {
 }
 
 .quickstart-block .prompt {
-  color: #c084fc;
+  color: var(--accent-2);
   font-weight: 600;
   display: inline-block;
   min-width: 4ch;
