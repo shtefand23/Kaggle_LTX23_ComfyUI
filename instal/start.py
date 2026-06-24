@@ -90,9 +90,6 @@ AUTO_UPDATE_NODE_REQS = False
 LOG_MAX_LINES = 300     # сколько последних строк держим в логе
 LOG_FLUSH_SEC = 0.5     # как часто перерисовываем виджет лога
 
-# Git: репозиторий установочных скриптов.
-GIT_REPO_URL = "https://github.com/THE-ANGEL-AI/instal.git"
-
 # Путь к установщику ШАГА 1 — берём рядом с этим файлом, не завися от cwd.
 # (При `%run instal/start.py` __file__ указывает на instal/start.py.)
 try:
