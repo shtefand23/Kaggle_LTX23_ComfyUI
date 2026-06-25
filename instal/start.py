@@ -123,6 +123,12 @@ class ComfyLauncher:
     def _build_ui(self):
         self.status = widgets.HTML(self._status_html("⏳ Запуск...", "#f39c12"))
 
+        # Heartbeat-тик: одна живая строка над кнопками. Обновляется раз в 30с
+        # ОТДЕЛЬНЫМ потоком и шлёт трафик ядро→браузер — Kaggle видит активность
+        # и не усыпляет сессию через ~40 мин «тишины». Это и есть anti-sleep маяк.
+        self._hb_started = time.time()
+        self.heartbeat = widgets.HTML(self._heartbeat_html(0))
+
         # Кнопка-ссылка появится, когда туннель отдаст URL.
         self.url_box = widgets.HTML(
             "<i style='color:#888'>Публичная ссылка появится здесь...</i>"
@@ -158,6 +164,7 @@ class ComfyLauncher:
         buttons = widgets.HBox([self.url_box, self.stop_btn, self.restart_btn])
         self.panel = widgets.VBox([
             self.status,
+            self.heartbeat,
             buttons,
             widgets.HTML("<b>Лог:</b>"),
             self.log,
@@ -166,6 +173,35 @@ class ComfyLauncher:
     @staticmethod
     def _status_html(text, color):
         return f"<h3 style='color:{color}; margin:6px 0'>{text}</h3>"
+
+    @staticmethod
+    def _heartbeat_html(elapsed_sec):
+        """Одна живая строка-маяк: пульс + тики + аптайм сессии."""
+        ticks = elapsed_sec // 30
+        h, rem = divmod(int(elapsed_sec), 3600)
+        m, s = divmod(rem, 60)
+        up = f"{h:d}ч {m:02d}м {s:02d}с" if h else f"{m:d}м {s:02d}с"
+        return (
+            "<div style='font-family:monospace; font-size:13px; color:#2ecc71; "
+            "background:#0f1117; border-left:3px solid #2ecc71; "
+            "padding:6px 12px; margin:4px 0; border-radius:4px;'>"
+            f"💚 keep-alive активен · тик #{ticks} · аптайм {up} · "
+            "Kaggle не уснёт</div>"
+        )
+
+    def _heartbeat_loop(self):
+        """Раз в 30с перерисовывает heartbeat-строку (трафик ядро→браузер =
+        видимая активность для Kaggle). Крутится, пока ячейку не остановили."""
+        while not self.stopped:
+            try:
+                self.heartbeat.value = self._heartbeat_html(
+                    time.time() - self._hb_started)
+            except Exception:
+                pass
+            for _ in range(30):           # спим 30с, но реагируем на стоп быстро
+                if self.stopped:
+                    return
+                time.sleep(1)
 
     def _set_status(self, text, color):
         self.status.value = self._status_html(text, color)
@@ -221,6 +257,7 @@ class ComfyLauncher:
     # ------------------------------------------------------------------
     def launch(self):
         display(self.panel)                       # панель появляется под ячейкой
+        Thread(target=self._heartbeat_loop, daemon=True).start()   # anti-sleep маяк
         Thread(target=self._log_flusher, daemon=True).start()
         Thread(target=self._startup, daemon=True).start()   # запуск в фоне
         # Блокируем ячейку keep-alive циклом — kernel остаётся активным, Kaggle
