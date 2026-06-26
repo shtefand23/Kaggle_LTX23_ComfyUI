@@ -173,7 +173,19 @@ def venv_python_ok():
         subprocess.run([VENV_PYTHON, "-c", "pass"],
                        check=True, capture_output=True, timeout=30)
         return True
-    except (subprocess.SubprocessError, OSError):
+    except subprocess.TimeoutExpired:
+        return False
+    except (subprocess.SubprocessError, OSError) as exc:
+        # Ловим stderr, если бинарь есть, но падает (libc, kernel, ...)
+        try:
+            err = subprocess.run(
+                [VENV_PYTHON, "-c", "pass"],
+                capture_output=True, timeout=15
+            )
+            detail = (err.stderr or b"").decode("utf-8", errors="replace")[:500]
+        except Exception as e2:
+            detail = str(e2)[:500]
+        warn(f"venv python есть, но НЕ запускается: {detail}")
         return False
 
 
@@ -230,13 +242,71 @@ def repair_venv_perms():
     return venv_python_ok()
 
 
+def repair_base_python_via_uv():
+    """Если базовый CPython битый (libc/kernel), удаляет старый и ставит свежий.
+
+    ВАЖНО: эта функция НЕ чинит venv — старый venv ссылается на старый
+    бинарник (другой путь). Она только готовит РАБОЧИЙ базовый CPython,
+    чтобы следующий `uv venv --clear` создал venv с новым CPython.
+    Пакеты переставятся из uv-кэша (быстро, torch уже скачан).
+
+    Возвращает:
+      True  — базовый CPython переустановлен, можно создавать venv заново;
+      False — uv не смог установить CPython (надо переустановить uv).
+    """
+    # 1. Удаляем старый CPython — uv поймёт, что надо ставить свежий
+    #    (без этого uv говорит "already installed" и пропускает установку).
+    if os.path.isdir(UV_PYTHON_DIR):
+        warn(f"Удаляю старый базовый CPython: {UV_PYTHON_DIR}")
+        shutil.rmtree(UV_PYTHON_DIR, ignore_errors=True)
+
+    # 2. Убеждаемся, что uv в PATH (после restart мог пропасть).
+    ensure_uv()
+
+    # 3. Ставим свежий CPython для текущего ядра Kaggle.
+    warn("Устанавливаю свежий базовый CPython через uv python install...")
+    result = run(["uv", "python", "install", PYTHON_VERSION], check=False)
+    if result.returncode != 0:
+        warn(f"uv python install не удался (код {result.returncode}) — "
+             f"нужна полная переустановка")
+        return False
+
+    # 4. Проверяем, что свежий python работает (на всякий случай).
+    #    Ищем любой python3.12 в UV_PYTHON_DIR (uv мог установить новый).
+    fresh_python = None
+    if os.path.isdir(UV_PYTHON_DIR):
+        for root, _dirs, files in os.walk(UV_PYTHON_DIR):
+            for f in files:
+                if f.startswith("python3.12"):
+                    fp = os.path.join(root, f)
+                    try:
+                        subprocess.run([fp, "-c", "pass"],
+                                       check=True, capture_output=True, timeout=15)
+                        fresh_python = fp
+                        break
+                    except (subprocess.SubprocessError, OSError):
+                        continue
+            if fresh_python:
+                break
+
+    if fresh_python:
+        warn(f"Свежий CPython работает: {fresh_python}. "
+             f"Теперь нужен новый venv (будет создан автоматически).")
+        return True
+
+    warn("Не удалось найти работающий CPython после uv python install")
+    return False
+
+
 def ensure_venv():
     """Гарантирует рабочий venv. Идемпотентно и максимально дёшево.
 
     Логика по возрастанию стоимости:
       1) venv уже рабочий                          -> ничего не делаем;
       2) папка есть, но битый -> ремонт +x          -> torch не трогаем;
-      3) ремонт не помог / папки нет -> пересоздаём  -> uv venv (+seed).
+      3) +x не помог -> переустановка CPython через uv
+         (подготовка к пересозданию venv, пакеты из uv-кэша);
+      4) всё плохо / venv нет -> пересоздаём venv   -> uv venv (+seed).
     """
     step("Проверка/создание venv")
     if venv_python_ok():
@@ -245,11 +315,18 @@ def ensure_venv():
 
     if os.path.exists(VENV_DIR):
         warn(f"venv найден, но нерабочий. Причина: {diagnose_venv()}")
+        # Этап 2: дёшево чиним +x (частая поломка после рестарта Kaggle).
         if repair_venv_perms():
             log(f"venv починен возвратом +x — пересоздание и переустановка "
                 f"torch НЕ нужны: {VENV_DIR}")
             return
-        warn(f"Ремонт +x не помог — пересоздаю venv с нуля: {VENV_DIR}")
+        # Этап 3: +x не помог — возможно, обновилось ядро Kaggle и старый
+        # CPython несовместим с libc. Удаляем его и ставим свежий.
+        warn(f"+x не помог — пробую переустановить базовый CPython: {VENV_DIR}")
+        repair_base_python_via_uv()
+        # NB: repair_base_python_via_uv НЕ чинит venv (старый symlink
+        # указывает на удалённый CPython). Он только готовит свежий CPython
+        # для следующего шага. Продолжаем с пересозданием venv.
 
     ensure_uv()  # для пересоздания нужен uv
     # --seed кладёт pip/setuptools внутрь venv — некоторым нодам это нужно.

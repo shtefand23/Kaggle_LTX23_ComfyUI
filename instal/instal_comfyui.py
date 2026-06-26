@@ -15,18 +15,18 @@ instal_comfyui.py
     и ComfyUI 0.24 включает на нём оптимизированные CUDA-операции (на cu128
     был warning и более медленный путь). Проверено на 2× T4.
   * xformers НЕ ставим: последние сборки xformers не содержат ядер для
-    Turing (T4, compute 7.5) и только тормозят. Быстрое внимание на T4
-    даёт нативный PyTorch SDPA — он включается флагом в start.py.
-  * SageAttention СОЗНАТЕЛЬНО НЕ ставим — он несовместим с Turing (T4, sm_75).
-    Проверено на железе (июнь 2026):
-      - v2.2+ из исходников отказывается собираться: setup.py пропускает обе
-        карты ("skipping GPU with compute capability 7.5") и падает с
-        "RuntimeError: No target compute capabilities";
-      - v1.0.6 (Triton, PyPI) ставится, но падает при запуске ядра на sm_75
-        ("RuntimeError: PassManager::run failed").
-    SageAttention требует Ampere (sm_80) или новее. На T4 быстрое внимание =
-    PyTorch SDPA (флаг --use-pytorch-cross-attention в start.py). Если когда-то
-    перейдёшь на sm_80+ GPU — Sage можно будет добавить отдельным шагом.
+    Turing (T4, compute 7.5) и только тормозят.
+  * SageAttention (официальный, thu-ml) СОЗНАТЕЛЬНО НЕ ставим — он
+    несовместим с Turing (T4, sm_75). Требует Ampere (sm_80+) или новее.
+  * SageAttention-SM75-path (github.com/XUANNISSAN/SageAttention-SM75-path) —
+    форк с поддержкой Turing через отдельный CUDA kernel
+    `sageattn_qk_int8_pv_fp16_cuda_sm75`. Ставится в рантайме из start.py
+    (шаг 3b). Если установка не удалась — fallback на split-cross-attention.
+  * Внимание на T4: используем --use-sage-attention (start.py).
+    SageAttention-SM75: INT8 QK + FP16 PV через CUDA. Если не установлен —
+    ComfyUI автоматически падает на стандартный attention (не крашится).
+    Если когда-то перейдёшь на sm_80+ GPU — официальный SageAttention
+    можно будет добавить отдельным шагом.
   * НЕ ставим tensorflow и старые diffusers/transformers — они тянут
     свои версии CUDA/численных библиотек и конфликтуют. Современные
     версии приедут вместе с requirements кастомных нод (шаг 2).

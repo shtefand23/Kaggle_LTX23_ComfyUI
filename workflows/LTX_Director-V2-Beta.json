@@ -1648,9 +1648,9 @@
             "widgets_values": [
               "ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
               "cuda:0",
-              10,
-              "cuda:1",
-              "",
+              0,
+              "cpu",
+              "cuda:0,50%;cuda:1,50%",
               true
             ]
           },
