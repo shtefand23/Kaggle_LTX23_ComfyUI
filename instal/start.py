@@ -22,11 +22,11 @@ start.py
     виджет → DOM раздувался и блокнот/браузер зависали.
 
 Скорость на T4:
-  * SageAttention-SM75-path (форк с поддержкой Turing): INT8 QK + FP16 PV
-    через CUDA, ставится из github.com/XUANNISSAN/SageAttention-SM75-path.
-    Даёт ~1.2-1.5x ускорение на T4 по сравнению со split-cross-attention.
-  * Флаг --use-sage-attention: ComfyUI использует SageAttention если он
-    установлен; если нет — автоматически падает на стандартный attention.
+  * SageAttention v1.0.6 (Triton, PyPI): если ставится и импортируется —
+    запускаем с --use-sage-attention. Triton-версия меньше требовательна к
+    GPU (не требует CUDA > 11.8) и может дать ~1.2-1.5x.
+  * Если SageAttention не установился или не импортируется — запускаем со
+    split-cross-attention (пакетная обработка по чанкам, быстрее SDPA math).
   * smart-memory НЕ отключаем — модель кэшируется в VRAM между
     генерациями, повторный прогон быстрее.
 
@@ -620,49 +620,64 @@ class ComfyLauncher:
         os.chmod(CLOUDFLARED, 0o755)
         self._print("[*] cloudflared готов (+x выставлен)")
 
-    # --- 3b. SageAttention-SM75 ----------------------------------------
-    SAGE_REPO = "https://github.com/XUANNISSAN/SageAttention-SM75-path.git"
+    # --- 3b. SageAttention (Turing) ------------------------------------
+    SAGE_VERSION = "1.0.6"
 
     def _install_sage_attention(self):
-        """Устанавливает SageAttention-SM75-path (форк с поддержкой Turing).
+        """Пытается установить sageattention==1.0.6 (Triton-версия для T4).
 
-        Установка идемпотентна: если пакет уже есть в venv — пропускает.
-        Если установка не удалась (например, несовместимая CUDA) — логгирует
-        предупреждение и продолжает со split-cross-attention.
+        Установка идемпотентна: если пакет уже есть — пропускает.
+        Результат сохраняется в self.sage_ok — на основе него _start_comfy
+        выбирает `--use-sage-attention` или `--use-split-cross-attention`.
         """
-        self._print("[*] Проверяю SageAttention-SM75 (Turing)...")
+        self._print("[*] Проверяю SageAttention...")
+        self.sage_ok = False
 
-        # Уже установлен? Быстрая проверка через python -c.
+        # Уже установлен?
         check = subprocess.run(
             [VENV_PYTHON, "-c", "import sageattention"],
             capture_output=True, text=True, timeout=15)
         if check.returncode == 0:
             self._print("[*] SageAttention уже установлен (пропуск)")
+            self.sage_ok = True
             return
 
-        self._set_status("⚙️ Устанавливаю SageAttention-SM75...", "#f39c12")
-        self._print("[*] Устанавливаю SageAttention-SM75 (форк с Turing)...")
-        self._print("[*] Это даст ~1.2-1.5x к скорости attention на T4")
+        ver = self.SAGE_VERSION
+        self._set_status(f"⚙️ Устанавливаю SageAttention v{ver}...", "#f39c12")
+        self._print(f"[*] pip install sageattention=={ver} (Triton, для T4)...")
 
         result = subprocess.run(
             ["uv", "pip", "install", "--python", VENV_PYTHON,
-             f"git+{self.SAGE_REPO}"],
+             f"sageattention=={ver}"],
             capture_output=True, text=True, timeout=300)
 
         if result.returncode == 0:
-            self._print("[OK] SageAttention-SM75 установлен! "
-                        "ComfyUI запустится с --use-sage-attention")
-            self._set_status("✅ SageAttention-SM75 установлен", "#27ae60")
-        else:
-            err = result.stderr.strip()[:300]
-            self._print(f"[!] SageAttention НЕ установился: {err}")
-            self._print("[!] Продолжаю со split-cross-attention (без Sage)")
-            self._set_status("⚠️ SageAttention не установлен — работаю без него",
-                             "#f39c12")
+            # Перепроверяем, что реально импортируется
+            verify = subprocess.run(
+                [VENV_PYTHON, "-c", "import sageattention"],
+                capture_output=True, text=True, timeout=15)
+            if verify.returncode == 0:
+                self._print(f"[OK] SageAttention v{ver} установлен! "
+                            "ComfyUI запустится с --use-sage-attention")
+                self._set_status(f"✅ SageAttention v{ver} установлен", "#27ae60")
+                self.sage_ok = True
+                return
+
+        err = (result.stderr or "").strip()[:300]
+        self._print(f"[!] SageAttention НЕ установился: {err}")
+        self._print("[!] Запускаю со split-cross-attention (без Sage)")
+        self._set_status("⚠️ SageAttention не установлен — работаю без него",
+                         "#f39c12")
 
     # --- 4. запуск ComfyUI --------------------------------------------
     def _start_comfy(self):
         self._set_status("⏳ Запуск ComfyUI...", "#f39c12")
+
+        # Флаг внимания: SageAttention если стоит, иначе split-cross-attention.
+        attention_flag = ("--use-sage-attention" if getattr(self, "sage_ok", False)
+                         else "--use-split-cross-attention")
+        self._print(f"[*] Attention: {attention_flag}")
+
         self.comfy_proc = subprocess.Popen(
             [
                 VENV_PYTHON, "main.py",
@@ -670,7 +685,7 @@ class ComfyLauncher:
                 "--port", str(PORT),
                 "--enable-cors-header", "*",
                 "--disable-auto-launch",
-                "--use-sage-attention",  # SageAttention-SM75 (Turing) — ~1.2-1.5x; fallback на standard если не установлен
+                attention_flag,
                 "--preview-method", "auto",
             ],
             cwd=COMFY_DIR,
