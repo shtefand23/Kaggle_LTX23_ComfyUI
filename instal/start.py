@@ -671,7 +671,26 @@ class ComfyLauncher:
                 self._print(f"[!] Клонирование не удалось: {err}")
                 return
 
-        # Шаг 3: собираем через pip install . с полным логом
+        # Шаг 3: патчим setup.py — отключаем проверку CUDA версии
+        # (на Kaggle: системная CUDA 12.8, PyTorch собран с CUDA 13.0)
+        self._print("[*] Патчу setup.py — пропускаю проверку CUDA version mismatch...")
+        setup_py = os.path.join(self.SAGE_SRC, "setup.py")
+        with open(setup_py, "r", encoding="utf-8") as f:
+            content = f.read()
+        # Вставляем monkey-patch после всех import, перед кодом setup.py
+        patch = (
+            "import torch.utils.cpp_extension\n"
+            "# Monkey-patch: отключаем проверку CUDA version mismatch\n"
+            "# (системная CUDA 12.8, PyTorch собран с CUDA 13.0)\n"
+            "torch.utils.cpp_extension._check_cuda_version = lambda *a, **kw: None\n"
+        )
+        if "torch.utils.cpp_extension._check_cuda_version" not in content:
+            content = content.replace("import torch", patch + "import torch", 1)
+            with open(setup_py, "w", encoding="utf-8") as f:
+                f.write(content)
+            self._print("[*] setup.py пропатчен")
+
+        # Шаг 4: собираем через pip install . с полным логом
         self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
         result = subprocess.run(
             [VENV_PYTHON, "-m", "pip", "install", "-e", ".",
