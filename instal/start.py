@@ -22,11 +22,11 @@ start.py
     виджет → DOM раздувался и блокнот/браузер зависали.
 
 Скорость на T4:
-  * SageAttention v1.0.6 (Triton, PyPI): если ставится и импортируется —
-    запускаем с --use-sage-attention. Triton-версия меньше требовательна к
-    GPU (не требует CUDA > 11.8) и может дать ~1.2-1.5x.
-  * Если SageAttention не установился или не импортируется — запускаем со
-    split-cross-attention (пакетная обработка по чанкам, быстрее SDPA math).
+  * Запуск с --use-split-cross-attention — split attention (пакетная обработка
+    по чанкам). На T4 с 46+ фреймами быстрее чем SDPA math backend, не вызывает
+    OOM на больших латентах при upsampling до 2560×1440.
+  * SageAttention НЕ используется — он несовместим с Turing (T4, sm_75).
+    Все версии (1.x Triton, 2.x CUDA, форк SM75) проверены и падают на T4.
   * smart-memory НЕ отключаем — модель кэшируется в VRAM между
     генерациями, повторный прогон быстрее.
 
@@ -309,7 +309,6 @@ class ComfyLauncher:
             self._check_git_updates()
             self._check_files()
             self._ensure_cloudflared()
-            self._install_sage_attention()
             self._start_comfy()
             self._wait_for_port()
             self._start_tunnel()
@@ -620,64 +619,11 @@ class ComfyLauncher:
         os.chmod(CLOUDFLARED, 0o755)
         self._print("[*] cloudflared готов (+x выставлен)")
 
-    # --- 3b. SageAttention (Turing) ------------------------------------
-    SAGE_VERSION = "1.0.6"
 
-    def _install_sage_attention(self):
-        """Пытается установить sageattention==1.0.6 (Triton-версия для T4).
-
-        Установка идемпотентна: если пакет уже есть — пропускает.
-        Результат сохраняется в self.sage_ok — на основе него _start_comfy
-        выбирает `--use-sage-attention` или `--use-split-cross-attention`.
-        """
-        self._print("[*] Проверяю SageAttention...")
-        self.sage_ok = False
-
-        # Уже установлен?
-        check = subprocess.run(
-            [VENV_PYTHON, "-c", "import sageattention"],
-            capture_output=True, text=True, timeout=15)
-        if check.returncode == 0:
-            self._print("[*] SageAttention уже установлен (пропуск)")
-            self.sage_ok = True
-            return
-
-        ver = self.SAGE_VERSION
-        self._set_status(f"⚙️ Устанавливаю SageAttention v{ver}...", "#f39c12")
-        self._print(f"[*] pip install sageattention=={ver} (Triton, для T4)...")
-
-        result = subprocess.run(
-            ["uv", "pip", "install", "--python", VENV_PYTHON,
-             f"sageattention=={ver}"],
-            capture_output=True, text=True, timeout=300)
-
-        if result.returncode == 0:
-            # Перепроверяем, что реально импортируется
-            verify = subprocess.run(
-                [VENV_PYTHON, "-c", "import sageattention"],
-                capture_output=True, text=True, timeout=15)
-            if verify.returncode == 0:
-                self._print(f"[OK] SageAttention v{ver} установлен! "
-                            "ComfyUI запустится с --use-sage-attention")
-                self._set_status(f"✅ SageAttention v{ver} установлен", "#27ae60")
-                self.sage_ok = True
-                return
-
-        err = (result.stderr or "").strip()[:300]
-        self._print(f"[!] SageAttention НЕ установился: {err}")
-        self._print("[!] Запускаю со split-cross-attention (без Sage)")
-        self._set_status("⚠️ SageAttention не установлен — работаю без него",
-                         "#f39c12")
 
     # --- 4. запуск ComfyUI --------------------------------------------
     def _start_comfy(self):
         self._set_status("⏳ Запуск ComfyUI...", "#f39c12")
-
-        # Флаг внимания: SageAttention если стоит, иначе split-cross-attention.
-        attention_flag = ("--use-sage-attention" if getattr(self, "sage_ok", False)
-                         else "--use-split-cross-attention")
-        self._print(f"[*] Attention: {attention_flag}")
-
         self.comfy_proc = subprocess.Popen(
             [
                 VENV_PYTHON, "main.py",
@@ -685,7 +631,7 @@ class ComfyLauncher:
                 "--port", str(PORT),
                 "--enable-cors-header", "*",
                 "--disable-auto-launch",
-                attention_flag,
+                "--use-split-cross-attention",  # split внимание — быстрее SDPA math на T4 с 46+ фреймами
                 "--preview-method", "auto",
             ],
             cwd=COMFY_DIR,

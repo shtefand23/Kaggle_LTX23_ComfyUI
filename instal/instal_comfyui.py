@@ -16,14 +16,14 @@ instal_comfyui.py
     был warning и более медленный путь). Проверено на 2× T4.
   * xformers НЕ ставим: последние сборки xformers не содержат ядер для
     Turing (T4, compute 7.5) и только тормозят.
-  * SageAttention (официальный, thu-ml) версии 1.x (Triton) — может
-    работать на T4 (проверка в рантайме). Ставится в start.py (шаг 3b):
-    `pip install sageattention==1.0.6`. Если не импортируется —
-    fallback на split-cross-attention.
-  * SageAttention v2+ (CUDA) — НЕ совместим с Turing (T4, sm_75),
-    требует Ampere (sm_80+) или новее.
-  * Внимание на T4: start.py динамически выбирает --use-sage-attention
-    (если установлен) или --use-split-cross-attention (если нет).
+  * SageAttention НЕ ИСПОЛЬЗУЕМ — все версии несовместимы с Turing (T4, sm_75):
+      - v1.0.6 (Triton, PyPI): импортируется, но падает при запуске ядра
+        ("RuntimeError: PassManager::run failed");
+      - v2.2+ (CUDA): отказывается собираться (setup.py не видит sm_75);
+      - форк SM75-path: не собрался (setuptools build failed).
+  * Внимание на T4: --use-split-cross-attention (start.py).
+    Пакетная обработка по чанкам. На T4 с 46+ фреймами быстрее SDPA math
+    backend. Не вызывает OOM на больших латентах (2560×1440 upsampling).
   * НЕ ставим tensorflow и старые diffusers/transformers — они тянут
     свои версии CUDA/численных библиотек и конфликтуют. Современные
     версии приедут вместе с requirements кастомных нод (шаг 2).
