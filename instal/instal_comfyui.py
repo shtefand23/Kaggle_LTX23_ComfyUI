@@ -50,7 +50,7 @@ import kaggle_env as ke
 from kaggle_env import (
     HOME_DIR, COMFY_DIR, VENV_PYTHON,
     log, warn, step, run, uv_pip_install,
-    ensure_uv, ensure_venv, venv_python_ok,
+    install_python, venv_python_ok,
 )
 
 # ----------------------------------------------------------------------
@@ -95,8 +95,7 @@ def install_system_packages():
 # 2. uv + venv (вся логика — в kaggle_env, тут только последовательность).
 # ----------------------------------------------------------------------
 def setup_uv_venv():
-    ensure_uv()
-    ensure_venv()
+    install_python()
 
 
 # ----------------------------------------------------------------------

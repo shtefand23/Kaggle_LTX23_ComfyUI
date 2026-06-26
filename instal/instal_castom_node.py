@@ -31,7 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kaggle_env import (
     COMFY_DIR, NODES_DIR, VENV_PYTHON,
     log, warn, step, run,
-    ensure_uv, venv_python_ok, repair_venv_perms,
+    install_python,
 )
 
 # ----------------------------------------------------------------------
@@ -109,17 +109,9 @@ def check_prerequisites():
     """Проверяем, что ШАГ 1 выполнен: есть uv, рабочий venv и custom_nodes."""
     step("Проверка окружения (результат ШАГА 1)")
 
-    # ensure_uv централизованно чинит +x бинаря uv после рестарта или ставит заново.
-    ensure_uv()
+    # install_python() централизованно ставит/чинит uv + venv (включая +x).
+    install_python()
 
-    # venv битый после рестарта — пробуем дёшево вернуть +x перед тем как падать.
-    if not venv_python_ok():
-        warn("venv нерабочий — пробую быстрый +x-ремонт")
-        if not repair_venv_perms():
-            raise RuntimeError(
-                "venv не найден или нерабочий (+x-ремонт не помог). "
-                "Перезапусти: !python instal/instal_comfyui.py"
-            )
     if not os.path.exists(NODES_DIR):
         raise RuntimeError(
             f"Не найдена папка {NODES_DIR}. "

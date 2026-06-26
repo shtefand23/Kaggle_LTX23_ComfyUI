@@ -307,11 +307,15 @@ def ensure_venv():
       3) +x не помог -> переустановка CPython через uv
          (подготовка к пересозданию venv, пакеты из uv-кэша);
       4) всё плохо / venv нет -> пересоздаём venv   -> uv venv (+seed).
+
+    Returns:
+      True  — venv уже работал (ничего не делали);
+      False — venv был починен/пересоздан (torch и пакеты могли пропасть).
     """
     step("Проверка/создание venv")
     if venv_python_ok():
         log(f"venv уже существует и рабочий: {VENV_DIR} (пересоздание пропущено)")
-        return
+        return True
 
     if os.path.exists(VENV_DIR):
         warn(f"venv найден, но нерабочий. Причина: {diagnose_venv()}")
@@ -319,7 +323,7 @@ def ensure_venv():
         if repair_venv_perms():
             log(f"venv починен возвратом +x — пересоздание и переустановка "
                 f"torch НЕ нужны: {VENV_DIR}")
-            return
+            return False
         # Этап 3: +x не помог — возможно, обновилось ядро Kaggle и старый
         # CPython несовместим с libc. Удаляем его и ставим свежий.
         warn(f"+x не помог — пробую переустановить базовый CPython: {VENV_DIR}")
@@ -335,6 +339,26 @@ def ensure_venv():
     if not venv_python_ok():
         raise RuntimeError("venv создан, но python не запускается — смотри лог выше")
     log(f"venv создан на Python {PYTHON_VERSION}: {VENV_DIR}")
+    return False
+
+
+def install_python():
+    """Гарантирует рабочий Python: uv в PATH + venv (создан/починен/пересоздан).
+
+    Единая точка входа для всех трёх скриптов (instal_comfyui.py,
+    instal_castom_node.py, start.py). Внутри вызывает:
+      1. ensure_uv()   — ставит uv-бинарь (если нет / битый),
+      2. ensure_venv() — проверяет venv, чинит +x, переустанавливает
+                         CPython, при необходимости пересоздаёт venv.
+
+    Идемпотентна и максимально дёшева: если всё уже работает — ничего не делает.
+
+    Returns:
+      True  — все компоненты уже работали (ничего не делали);
+      False — были выполнены ремонт/пересоздание (пакеты могли пропасть).
+    """
+    ensure_uv()
+    return ensure_venv()
 
 
 def uv_pip_install(*packages, extra_args=None):

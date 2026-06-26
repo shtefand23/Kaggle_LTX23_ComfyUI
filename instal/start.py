@@ -396,19 +396,6 @@ class ComfyLauncher:
         """
         return ke.venv_python_ok()
 
-    def _repair_venv_perms(self):
-        """Дёшево чинит частую поломку после рестарта Kaggle: слетевший бит +x.
-
-        Делегируем в kaggle_env.repair_venv_perms() — он возвращает +x
-        интерпретатору venv, бинарю uv и базовому CPython, не пересоздавая
-        venv и не переустанавливая torch. Возвращает True, если venv заработал.
-        """
-        ok = ke.repair_venv_perms()
-        if ok:
-            self._print("[*] Вернул бит +x интерпретатору venv/uv-python "
-                        "(после рестарта слетал)")
-        return ok
-
     def _run_script(self, path, label, hint):
         """Запускает установщик-скрипт, стримя его лог в виджет.
 
@@ -449,49 +436,39 @@ class ComfyLauncher:
     def _check_files(self):
         # venv пропал или битый (типично после рестарта сессии Kaggle).
         if not self._venv_python_ok():
-            # Этап 1: дёшево вернуть слетевший бит +x (частая поломка
-            # после рестарта). Если помогло — venv цел, torch не трогаем.
-            self._set_status("⚙️ venv нерабочий — пробую быстрый +x-ремонт...",
+            self._set_status("⚙️ venv нерабочий — чиню Python-окружение...",
                              "#f39c12")
-            self._print("[!] venv нерабочий — пробую быстрый +x-ремонт перед "
-                        "полной переустановкой")
-            if self._repair_venv_perms():
-                self._print("[*] venv починен возвратом +x — переустановка "
-                            "не нужна")
-                return
-
-            # Этап 2: +x не помог — может, обновилось ядро Kaggle (libc/kernel
-            # несовместимы со старым CPython). Пробуем удалить старый CPython
-            # и установить свежий через uv.
-            self._set_status("⚙️ +x не помог — обновляю базовый CPython...",
-                             "#f39c12")
-            self._print("[!] +x-ремонт не помог — удаляю старый CPython и "
-                        "ставлю свежий (совместимый с этим ядром Kaggle)")
+            self._print("[!] venv нерабочий — запускаю "
+                        "kaggle_env.install_python()")
             try:
-                ke.repair_base_python_via_uv()
-                # NB: эта функция НЕ чинит venv (старый symlink битый).
-                # Она только готовит свежий CPython. Продолжаем переустановкой.
+                was_ok = ke.install_python()
             except Exception as exc:
-                self._print(f"[!] repair_base_python_via_uv упал: {exc}")
+                self._print(f"[!] install_python() упал: {exc}")
+                raise RuntimeError(
+                    "Ошибка при установке Python-окружения — смотри лог выше"
+                ) from exc
 
-            # Этап 3: пересоздаём venv с новым CPython через установщик
-            # ШАГА 1 (uv venv --clear + reinstall torch из кэша).
-            # Пакеты переставятся из uv-кэша (быстро, torch уже скачан).
-            self._set_status("⚙️ Переустанавливаю venv через установщик...",
-                             "#f39c12")
-            self._print("[!] CPython-ремонт не помог — авто-переустановка venv")
-            self._run_installer()
             if not self._venv_python_ok():
                 raise RuntimeError(
-                    "venv так и не заработал после установщика — смотри лог выше"
+                    "venv так и не заработал — смотри лог выше"
                 )
-            # После пересоздания venv все пакеты (включая зависимости
-            # кастомных нод) пропали — переустанавливаем их сразу.
-            self._set_status("⚙️ Переустанавливаю зависимости кастомных нод...",
-                             "#f39c12")
-            self._print("[!] venv пересоздан — переустанавливаю зависимости "
-                        "кастомных нод (иначе упадут с ImportError)")
-            self._run_node_installer()
+
+            if not was_ok:
+                # venv был пересоздан — torch и пакеты пропали.
+                # Установщик сам проверит torch_cuda_ok() и пропустит,
+                # если torch на месте (быстрый +x-ремонт без пересоздания).
+                self._set_status("⚙️ Устанавливаю torch и зависимости "
+                                 "ComfyUI...", "#f39c12")
+                self._print("[!] venv пересоздан — устанавливаю torch через "
+                            "установщик (пакеты из uv-кэша)")
+                self._run_installer()
+
+                self._set_status("⚙️ Переустанавливаю зависимости "
+                                 "кастомных нод...", "#f39c12")
+                self._print("[!] venv пересоздан — переустанавливаю "
+                            "зависимости кастомных нод "
+                            "(иначе упадут с ImportError)")
+                self._run_node_installer()
 
         for path, msg in (
             (COMFY_DIR, "ComfyUI не найден — запусти instal/instal_comfyui.py"),
