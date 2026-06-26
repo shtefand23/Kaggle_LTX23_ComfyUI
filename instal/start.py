@@ -679,11 +679,10 @@ class ComfyLauncher:
         #   - .cu скелет — заменён на include
         # Ничего патчить не нужно.
 
-        # Шаг 4: editable install — собирает CUDA-ядро и прилинковывает исходники
-        self._print("[*] Компилирую CUDA-ядро под sm_75 и устанавливаю пакет (5-10 мин)...")
+        # Шаг 4: собираем CUDA-расширение
+        self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
         result = subprocess.run(
-            [VENV_PYTHON, "-m", "pip", "install", "-e", ".",
-             "--no-build-isolation", "--no-deps"],
+            [VENV_PYTHON, "setup.py", "build_ext", "--inplace"],
             cwd=self.SAGE_SRC,
             capture_output=True, text=True, timeout=900)
 
@@ -741,8 +740,17 @@ class ComfyLauncher:
                 self._print(f"  {line}")
 
         if result.returncode == 0:
-            # pip install -e . уже сделал всё: сборку + установку
-            self._print("[*] CUDA-ядро скомпилировано и пакет установлен (editable)")
+            # После build_ext --inplace, .so файлы лежат в sageattention/
+            # Ставим пакет (без перекомпиляции — .so уже готовы)
+            self._print("[*] CUDA-ядро скомпилировано, устанавливаю пакет...")
+            install = subprocess.run(
+                [VENV_PYTHON, "-m", "pip", "install", "--no-build-isolation",
+                 "--no-deps", "."],
+                cwd=self.SAGE_SRC,
+                capture_output=True, text=True, timeout=120)
+            for line in (install.stdout or "").split("
+")[-10:]:
+                self._print(f"  {line}")
 
             verify = subprocess.run(
                 [VENV_PYTHON, "-c", "import sageattention"],
