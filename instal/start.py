@@ -658,11 +658,15 @@ class ComfyLauncher:
 
         # Шаг 2: клонируем репозиторий (если ещё не склонирован)
         if os.path.isdir(self.SAGE_SRC):
-            self._print("[*] Репозиторий уже склонирован — делаю git pull...")
+            # Переключаем remote на форк (на случай если раньше клонировали XUANNISSAN)
+            subprocess.run(
+                ["git", "-C", self.SAGE_SRC, "remote", "set-url", "origin", repo_url],
+                capture_output=True, text=True, timeout=30)
+            self._print("[*] Репозиторий уже склонирован — делаю git pull (форк)...")
             subprocess.run(["git", "-C", self.SAGE_SRC, "pull", "--ff-only"],
                            capture_output=True, text=True, timeout=60)
         else:
-            self._print("[*] Клонирую SageAttention-SM75-path...")
+            self._print("[*] Клонирую SageAttention-SM75-path (форк)...")
             clone = subprocess.run(
                 ["git", "clone", repo_url, self.SAGE_SRC],
                 capture_output=True, text=True, timeout=120)
@@ -671,182 +675,13 @@ class ComfyLauncher:
                 self._print(f"[!] Клонирование не удалось: {err}")
                 return
 
-        # Шаг 3: патчим setup.py — отключаем проверку CUDA версии
-        # (на Kaggle: системная CUDA 12.8, PyTorch собран с CUDA 13.0)
-        self._print("[*] Патчу setup.py — пропускаю проверку CUDA version mismatch...")
-        setup_py = os.path.join(self.SAGE_SRC, "setup.py")
-        with open(setup_py, "r", encoding="utf-8") as f:
-            content = f.read()
-        # Вставляем monkey-patch после всех import, перед кодом setup.py
-        patch = (
-            "import torch.utils.cpp_extension\n"
-            "# Monkey-patch: отключаем проверку CUDA version mismatch\n"
-            "# (системная CUDA 12.8, PyTorch собран с CUDA 13.0)\n"
-            "torch.utils.cpp_extension._check_cuda_version = lambda *a, **kw: None\n"
-        )
-        if "torch.utils.cpp_extension._check_cuda_version" not in content:
-            content = content.replace("import torch", patch + "import torch", 1)
-            with open(setup_py, "w", encoding="utf-8") as f:
-                f.write(content)
-            self._print("[*] setup.py пропатчен (CUDA version check)")
-
-        # Фикс -gencode: делаем всегда, независимо от CUDA version check
-        # (предыдущий патч мог пропустить этот шаг)
-        with open(setup_py, "r", encoding="utf-8") as f:
-            content = f.read()
-        if '"-gencode",  # fixed by start.py' not in content:
-            import re
-            content, n = re.subn(
-                r'f"-gencode arch=(compute_\d+),code=(sm_\d+)"',
-                '"-gencode",\n            f"arch=\\1,code=\\2",  # fixed by start.py',
-                content
-            )
-            if n > 0:
-                with open(setup_py, "w", encoding="utf-8") as f:
-                    f.write(content)
-                self._print("[*] setup.py: -gencode split на 2 аргумента")
-            else:
-                self._print("[*] setup.py: -gencode split не нужен")
-
-        # Шаг 3b: патчим CUDA-хедер — оборачиваем в #ifdef __CUDACC__
-        # (pybind_sm75.cpp включает этот хедер и компилируется g++, который
-        #  не знает CUDA intrinsic). Весь CUDA-код → под guard, декларация
-        #  C++ функции → снаружи (для взятия адреса &function в pybind).
-        hdr = os.path.join(self.SAGE_SRC, "csrc", "qattn", "attn_cuda_sm75.h")
-        with open(hdr, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        if "#ifdef __CUDACC__" not in content:
-            # Добавляем include reduction_utils.cuh (нужен для warpReduceSum/Max)
-            if '#include "../reduction_utils.cuh"' not in content:
-                content = content.replace(
-                    '#include "attn_utils.cuh"',
-                    '#include "attn_utils.cuh"\n#include "../reduction_utils.cuh"', 1)
-
-            # Извлекаем сигнатуру C++ функции для декларации
-            sig = ""
-            marker = "torch::Tensor qk_int8_sv_f16_accum_f32_attn_sm75"
-            if marker in content:
-                cpp_part = content[content.index(marker):]
-                sig = cpp_part.split("{", 1)[0] + ";\n"
-
-            guarded = (
-                "#ifdef __CUDACC__\n"
-                f"{content}\n"
-                "#endif  // __CUDACC__\n"
-            )
-            if sig:
-                guarded += f"\n// Декларация для host compiler (pybind берёт &function)\n{sig}"
-
-            with open(hdr, "w", encoding="utf-8") as f:
-                f.write(guarded)
-            self._print("[*] attn_cuda_sm75.h: весь CUDA-код под #ifdef __CUDACC__")
-
-        # Шаг 3c: добавляем недостающие MMA-функции для SM75 в mma.cuh
-        # (форк использует m8n8k32 int8 и m16n8k8 fp16, которых нет в mma.cuh)
-        mma_cuh = os.path.join(self.SAGE_SRC, "csrc", "mma.cuh")
-        with open(mma_cuh, "r", encoding="utf-8") as f:
-            mma_content = f.read()
-
-        # Проверяем, есть ли уже m8n8k32
-        if "mma_sync_m8n8k32_row_col_s8s8s32" not in mma_content:
-            sm75_mma_additions = """
-// ===== SM75 (Turing) MMA wrappers =====
-// mma.sync.aligned.m8n8k32.row.col.s32.s8.s8.s32
-template <MMAMode mma_mode = MMAMode::kInplaceUpdate>
-__device__ __forceinline__ void mma_sync_m8n8k32_row_col_s8s8s32(int32_t* C, uint32_t* A, uint32_t* B) {
-  if constexpr (mma_mode == MMAMode::kInplaceUpdate) {
-    asm volatile(
-        "mma.sync.aligned.m8n8k32.row.col.s32.s8.s8.s32 "
-        "{%0, %1, %2, %3},"
-        "{%4, %5, %6, %7},"
-        "{%8, %9},"
-        "{%10, %11, %12, %13};\\n"
-        : "=r"(C[0]), "=r"(C[1]), "=r"(C[2]), "=r"(C[3])
-        : "r"(A[0]), "r"(A[1]), "r"(A[2]), "r"(A[3]), "r"(B[0]), "r"(B[1]),
-          "r"(C[0]), "r"(C[1]), "r"(C[2]), "r"(C[3]));
-  } else {
-    asm volatile(
-        "mma.sync.aligned.m8n8k32.row.col.s32.s8.s8.s32 "
-        "{%0, %1, %2, %3},"
-        "{%4, %5, %6, %7},"
-        "{%8, %9},"
-        "{%10, %11, %12, %13};\\n"
-        : "=r"(C[0]), "=r"(C[1]), "=r"(C[2]), "=r"(C[3])
-        : "r"(A[0]), "r"(A[1]), "r"(A[2]), "r"(A[3]), "r"(B[0]), "r"(B[1]),
-          "r"(0), "r"(0), "r"(0), "r"(0));
-  }
-}
-
-// mma.sync.aligned.m16n8k8.row.col.f32.f16.f16.f32
-template <MMAMode mma_mode = MMAMode::kInplaceUpdate>
-__device__ __forceinline__ void mma_sync_m16n8k8_row_col_f16f16f32(float* C, uint32_t* A, uint32_t* B) {
-  if constexpr (mma_mode == MMAMode::kInplaceUpdate) {
-    asm volatile(
-        "mma.sync.aligned.m16n8k8.row.col.f32.f16.f16.f32 "
-        "{%0, %1, %2, %3},"
-        "{%4, %5, %6, %7},"
-        "{%8, %9},"
-        "{%10, %11, %12, %13};\\n"
-        : "=f"(C[0]), "=f"(C[1]), "=f"(C[2]), "=f"(C[3])
-        : "r"(A[0]), "r"(A[1]), "r"(A[2]), "r"(A[3]), "r"(B[0]), "r"(B[1]),
-          "f"(C[0]), "f"(C[1]), "f"(C[2]), "f"(C[3]));
-  } else {
-    asm volatile(
-        "mma.sync.aligned.m16n8k8.row.col.f32.f16.f16.f32 "
-        "{%0, %1, %2, %3},"
-        "{%4, %5, %6, %7},"
-        "{%8, %9},"
-        "{%10, %11, %12, %13};\\n"
-        : "=f"(C[0]), "=f"(C[1]), "=f"(C[2]), "=f"(C[3])
-        : "r"(A[0]), "r"(A[1]), "r"(A[2]), "r"(A[3]), "r"(B[0]), "r"(B[1]),
-          "f"(0.f), "f"(0.f), "f"(0.f), "f"(0.f));
-  }
-}
-// ===== END SM75 wrappers =====
-
-"""
-            # Вставляем перед закрывающей скобкой namespace mma
-            mma_content = mma_content.replace(
-                "} // namespace mma",
-                sm75_mma_additions + "\n} // namespace mma", 1)
-            with open(mma_cuh, "w", encoding="utf-8") as f:
-                f.write(mma_content)
-            self._print("[*] mma.cuh: добавлены SM75-врапперы (m8n8k32 int8 + m16n8k8 fp16)")
-        else:
-            self._print("[*] mma.cuh: SM75-врапперы уже есть")
-
-        # Шаг 3d: переписываем .cu файл — он содержит скелет с несуществующими
-        # MMA-вызовами (m8n8k4). Заменяем на минимальный файл, который просто
-        # включает attn_cuda_sm75.h (там настоящий кернел под #ifdef __CUDACC__).
-        cu_file = os.path.join(self.SAGE_SRC, "csrc", "qattn", "qk_int_sv_f16_cuda_sm75.cu")
-        with open(cu_file, "r", encoding="utf-8") as f:
-            cu_content = f.read()
-        if "SM75_SKELETON_REPLACED" not in cu_content:
-            minimal_cu = """/*
- * Copyright (c) 2024 by SageAttention team.
- * (SM75 Kernel — включается из attn_cuda_sm75.h)
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
-// SM75_SKELETON_REPLACED — скелет заменён на include attn_cuda_sm75.h
-#include "attn_cuda_sm75.h"
-"""
-            with open(cu_file, "w", encoding="utf-8") as f:
-                f.write(minimal_cu)
-            self._print("[*] qk_int_sv_f16_cuda_sm75.cu: заменён на #include attn_cuda_sm75.h")
-        else:
-            self._print("[*] qk_int_sv_f16_cuda_sm75.cu: уже пропатчен")
+        # Шаг 3: форк THE-ANGEL-AI уже содержит все фиксы:
+        #   - CUDA version check — отключён
+        #   - -gencode — разбит на 2 аргумента
+        #   - attn_cuda_sm75.h — под #ifdef __CUDACC__
+        #   - mma.cuh — SM75-врапперы добавлены
+        #   - .cu скелет — заменён на include
+        # Ничего патчить не нужно.
 
         # Шаг 4: собираем CUDA-расширение напрямую (без editable wheel)
         self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
