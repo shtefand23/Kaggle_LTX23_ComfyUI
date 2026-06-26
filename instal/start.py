@@ -690,21 +690,39 @@ class ComfyLauncher:
                 f.write(content)
             self._print("[*] setup.py пропатчен")
 
-        # Шаг 4: собираем через pip install . с полным логом
+        # Шаг 4: собираем CUDA-расширение напрямую (без editable wheel)
         self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
+        self._print("[*] Если упадёт — ищи строки с error: в логе ниже")
         result = subprocess.run(
-            [VENV_PYTHON, "-m", "pip", "install", "-e", ".",
-             "-v", "--no-build-isolation"],
+            [VENV_PYTHON, "setup.py", "build_ext", "--inplace"],
             cwd=self.SAGE_SRC,
             capture_output=True, text=True, timeout=900)
 
-        # Печатаем полный лог (последние 50 строк)
+        # Печатаем полный лог (последние 100 строк)
         log = (result.stdout or "").strip()
         err = (result.stderr or "").strip()
-        for line in (log + "\n" + err).split("\n")[-50:]:
+        full = log + "\n" + err
+        # Ищем строки с ошибками
+        errors = [l for l in full.split("\n") if "error" in l.lower()]
+        for line in errors[-20:]:
+            self._print(f"  ⛔ {line}")
+        # и последние 30 строк лога
+        self._print("[... последние строки лога ...]")
+        for line in full.split("\n")[-30:]:
             self._print(f"  {line}")
 
         if result.returncode == 0:
+            # После build_ext --inplace, .so файлы лежат в csrc/
+            # Ставим сам пакет без перекомпиляции
+            self._print("[*] CUDA-ядро скомпилировано, устанавливаю пакет...")
+            install = subprocess.run(
+                [VENV_PYTHON, "-m", "pip", "install", "--no-build-isolation",
+                 "--no-deps", "."],
+                cwd=self.SAGE_SRC,
+                capture_output=True, text=True, timeout=120)
+            for line in (install.stdout or "").split("\n")[-10:]:
+                self._print(f"  {line}")
+
             verify = subprocess.run(
                 [VENV_PYTHON, "-c", "import sageattention"],
                 capture_output=True, text=True, timeout=15)
@@ -714,6 +732,9 @@ class ComfyLauncher:
                 self._set_status("✅ SageAttention-SM75 готов", "#27ae60")
                 self.sage_ok = True
                 return
+            else:
+                self._print(f"[!] Пакет установлен, но не импортируется: "
+                            f"{verify.stderr.strip()[:200]}")
 
         self._print(f"[!] Сборка не удалась (код {result.returncode})")
         self._print("[!] Запускаю со split-cross-attention (без Sage)")
