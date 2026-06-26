@@ -740,70 +740,54 @@ class ComfyLauncher:
                 self._print(f"  {line}")
 
         if result.returncode == 0:
-            # После build_ext --inplace, .so файлы лежат в sageattention/
-            # Ставим пакет (без перекомпиляции — .so уже готовы)
-            self._print("[*] CUDA-ядро скомпилировано, устанавливаю пакет...")
+            self._print("[*] CUDA kernel compiled, installing package...")
             install = subprocess.run(
                 [VENV_PYTHON, "-m", "pip", "install", "--no-build-isolation",
                  "--no-deps", "."],
                 cwd=self.SAGE_SRC,
                 capture_output=True, text=True, timeout=120)
-            for line in (install.stdout or "").split("
-")[-10:]:
+            for line in (install.stdout or "").split("\n")[-10:]:
                 self._print(f"  {line}")
 
             verify = subprocess.run(
                 [VENV_PYTHON, "-c", "import sageattention"],
                 capture_output=True, text=True, timeout=15)
             if verify.returncode == 0:
-                self._print("[OK] SageAttention-SM75 установлен!")
-                # Symlink в ComfyUI custom_nodes для авто-обнаружения ноды SageAttention-T4
+                self._print("[OK] SageAttention-SM75 installed!")
                 sage_node_dir = f"{COMFY_DIR}/custom_nodes/SageAttention-T4"
                 try:
-                    # Если symlink уже есть, но указывает не туда — пересоздаём
                     if os.path.islink(sage_node_dir):
                         if os.readlink(sage_node_dir) != self.SAGE_SRC:
                             os.unlink(sage_node_dir)
                             os.symlink(self.SAGE_SRC, sage_node_dir)
-                            self._print("[*] ComfyUI node symlink обновлён: SageAttention-T4")
+                            self._print("[*] ComfyUI node symlink updated: SageAttention-T4")
                         else:
-                            self._print("[*] ComfyUI node уже в custom_nodes: SageAttention-T4")
+                            self._print("[*] ComfyUI node already in custom_nodes: SageAttention-T4")
                     elif not os.path.exists(sage_node_dir):
                         os.symlink(self.SAGE_SRC, sage_node_dir)
                         self._print("[*] ComfyUI node symlinked: SageAttention-T4")
                     else:
-                        self._print(f"[*] ComfyUI node dir exists (not symlink): {sage_node_dir}")
+                        self._print(f"[*] ComfyUI node dir exists: {sage_node_dir}")
                 except OSError as e:
-                    self._print(f"[!] Symlink не удался ({e}) — ComfyUI-нода НЕ обнаружена. "
-                                f"Скопируй comfyui_nodes/ в {sage_node_dir} вручную.")
-                self._set_status("✅ SageAttention-SM75 готов", "#27ae60")
+                    self._print(f"[!] Symlink failed ({e}) - node NOT discovered")
+                self._set_status("SageAttention-SM75 ready", "#27ae60")
                 self.sage_ok = True
-                # Auto-inject SageAttention-T4 into ComfyUI workflows
                 self._inject_sageattn_into_workflows()
                 return
             else:
-                self._print(f"[!] Пакет установлен, но не импортируется: "
+                self._print(f"[!] Package installed but not importable: "
                             f"{verify.stderr.strip()[:200]}")
 
-        self._print(f"[!] Сборка не удалась (код {result.returncode})")
-        self._print("[!] Запускаю со split-cross-attention (без Sage)")
-        self._set_status("⚠️ SageAttention не установлен — работаю без него",
+        self._print(f"[!] Build failed (code {result.returncode})")
+        self._print("[!] Falling back to split-cross-attention (no Sage)")
+        self._set_status("SageAttention not installed - running without it",
                          "#f39c12")
+        self._print("[!] Falling back to split-cross-attention (no Sage)")
+        self._set_status("SageAttention not installed - running without it", "#f39c12")
 
-    def _inject_sageattn_into_workflows(self):
-        try:
-            injector = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                'scripts', 'inject_sageattn_workflow.py'
-            )
-            workflows_dir = f"{COMFY_DIR}/user/default/workflows"
-            if os.path.exists(injector) and os.path.isdir(workflows_dir):
-                subprocess.run(
-                    [VENV_PYTHON, injector, workflows_dir],
-                    capture_output=True, text=True, timeout=120)
-                self._print("[*] SageAttention-T4 injected into ComfyUI workflows")
-        except Exception as e:
-            self._print(f"[!] Workflow injection failed: {e}")
+        self._print("[!] Falling back to split-cross-attention (no Sage)")
+        self._set_status("⚠️ SageAttention not installed - running without it",
+                         "#f39c12")
 
     # --- 4. запуск ComfyUI --------------------------------------------
     def _start_comfy(self):
