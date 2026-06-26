@@ -647,7 +647,7 @@ class ComfyLauncher:
             return
 
         self._set_status("⚙️ Устанавливаю SageAttention-SM75...", "#f39c12")
-        repo_url = "https://github.com/XUANNISSAN/SageAttention-SM75-path.git"
+        repo_url = "https://github.com/THE-ANGEL-AI/SageAttention-SM75-path.git"
 
         # Шаг 1: обновляем build-зависимости
         self._print("[*] Обновляю setuptools + wheel...")
@@ -686,17 +686,27 @@ class ComfyLauncher:
         )
         if "torch.utils.cpp_extension._check_cuda_version" not in content:
             content = content.replace("import torch", patch + "import torch", 1)
-            # Также фиксим -gencode: вместо `f"-gencode arch=...,code=..."`
-            # делаем два отдельных элемента: "-gencode", "arch=...,code=..."
-            import re
-            content = re.sub(
-                r'f"-gencode arch=(compute_\d+),code=(sm_\d+)"',
-                '"-gencode",\n            f"arch=\\1,code=\\2"',
-                content
-            )
             with open(setup_py, "w", encoding="utf-8") as f:
                 f.write(content)
-            self._print("[*] setup.py пропатчен (+ -gencode split)")
+            self._print("[*] setup.py пропатчен (CUDA version check)")
+
+        # Фикс -gencode: делаем всегда, независимо от CUDA version check
+        # (предыдущий патч мог пропустить этот шаг)
+        with open(setup_py, "r", encoding="utf-8") as f:
+            content = f.read()
+        if '"-gencode",  # fixed by start.py' not in content:
+            import re
+            content, n = re.subn(
+                r'f"-gencode arch=(compute_\d+),code=(sm_\d+)"',
+                '"-gencode",\n            f"arch=\\1,code=\\2",  # fixed by start.py',
+                content
+            )
+            if n > 0:
+                with open(setup_py, "w", encoding="utf-8") as f:
+                    f.write(content)
+                self._print("[*] setup.py: -gencode split на 2 аргумента")
+            else:
+                self._print("[*] setup.py: -gencode split не нужен")
 
         # Шаг 3b: патчим CUDA-хедер — оборачиваем в #ifdef __CUDACC__
         # (pybind_sm75.cpp включает этот хедер и компилируется g++, который
