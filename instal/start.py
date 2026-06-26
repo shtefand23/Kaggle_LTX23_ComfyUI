@@ -656,15 +656,29 @@ class ComfyLauncher:
              "setuptools", "wheel"],
             capture_output=True, text=True, timeout=120)
 
-        # Шаг 2: клонируем репозиторий (если ещё не склонирован)
+        # Шаг 2: клонируем/обновляем репозиторий
         if os.path.isdir(self.SAGE_SRC):
             # Переключаем remote на форк (на случай если раньше клонировали XUANNISSAN)
             subprocess.run(
                 ["git", "-C", self.SAGE_SRC, "remote", "set-url", "origin", repo_url],
                 capture_output=True, text=True, timeout=30)
-            self._print("[*] Репозиторий уже склонирован — делаю git pull (форк)...")
-            subprocess.run(["git", "-C", self.SAGE_SRC, "pull", "--ff-only"],
-                           capture_output=True, text=True, timeout=60)
+            self._print("[*] Репозиторий уже склонирован — проверяю обновления форка...")
+            # fetch + ff-only pull — авто-обновление при каждом старте
+            subprocess.run(
+                ["git", "-C", self.SAGE_SRC, "fetch", "--quiet"],
+                capture_output=True, text=True, timeout=30)
+            pull = subprocess.run(
+                ["git", "-C", self.SAGE_SRC, "pull", "--ff-only"],
+                capture_output=True, text=True, timeout=60)
+            if pull.returncode == 0:
+                out = (pull.stdout or "").strip()
+                if out and "Already up to date" not in out:
+                    self._print(f"[*] Форк обновлён:\n{out.splitlines()[-3:][0]}")
+                else:
+                    self._print("[*] Форк актуален")
+            else:
+                err = (pull.stderr or "").strip()[:200]
+                self._print(f"[!] git pull не удался: {err} (продолжаю со старой версией)")
         else:
             self._print("[*] Клонирую SageAttention-SM75-path (форк)...")
             clone = subprocess.run(
