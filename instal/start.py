@@ -690,6 +690,25 @@ class ComfyLauncher:
                 f.write(content)
             self._print("[*] setup.py пропатчен")
 
+        # Шаг 3b: патчим CUDA-хедер — __syncthreads + __int2float_rz
+        # (CUDA 12+/13+ требует cuda_runtime.h, __int2float_rz → __int2float_rn)
+        hdr = os.path.join(self.SAGE_SRC, "csrc", "qattn", "attn_cuda_sm75.h")
+        with open(hdr, "r", encoding="utf-8") as f:
+            content = f.read()
+        edits = 0
+        if '#include <cuda_runtime.h>' not in content:
+            content = content.replace(
+                '#include "../utils.cuh"',
+                '#include "../utils.cuh"\n#include <cuda_runtime.h>', 1)
+            edits += 1
+        if '__int2float_rz' in content:
+            content = content.replace('__int2float_rz', '__int2float_rn')
+            edits += 1
+        if edits:
+            with open(hdr, "w", encoding="utf-8") as f:
+                f.write(content)
+            self._print(f"[*] attn_cuda_sm75.h пропатчен ({edits} изменений)")
+
         # Шаг 4: собираем CUDA-расширение напрямую (без editable wheel)
         self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
         self._print("[*] Если упадёт — ищи строки с error: в логе ниже")
