@@ -622,19 +622,22 @@ class ComfyLauncher:
 
 
     # --- 3b. SageAttention-SM75 (Turing) -----------------------------
+    SAGE_SRC = f"{HOME_DIR}/sageattention-sm75"
+
     def _install_sage_attention(self):
-        """Устанавливает SageAttention-SM75-path с поддержкой Turing (sm_75).
+        """Клонирует и собирает SageAttention-SM75-path с поддержкой Turing.
 
         Компилирует CUDA-ядро `sageattn_qk_int8_pv_fp16_cuda_sm75`.
-        Использует прямой python -m pip (не uv), потому что uv не всегда
-        корректно собирает CUDA-расширения из git.
-
         Идемпотентно: если пакет уже импортируется — пропускает.
         self.sage_ok = True/False — результат для динамического выбора флага.
+
+        Использует клонирование + local install, чтобы видеть полный лог
+        ошибок при компиляции CUDA.
         """
         self._print("[*] Проверяю SageAttention-SM75 (Turing)...")
         self.sage_ok = False
 
+        # Уже установлен?
         check = subprocess.run(
             [VENV_PYTHON, "-c", "import sageattention"],
             capture_output=True, text=True, timeout=15)
@@ -644,20 +647,43 @@ class ComfyLauncher:
             return
 
         self._set_status("⚙️ Устанавливаю SageAttention-SM75...", "#f39c12")
-        repo = "git+https://github.com/XUANNISSAN/SageAttention-SM75-path.git"
+        repo_url = "https://github.com/XUANNISSAN/SageAttention-SM75-path.git"
 
-        # Шаг 1: обновляем build-зависимости (нужны для сборки CUDA)
+        # Шаг 1: обновляем build-зависимости
         self._print("[*] Обновляю setuptools + wheel...")
         subprocess.run(
             [VENV_PYTHON, "-m", "pip", "install", "--upgrade",
              "setuptools", "wheel"],
             capture_output=True, text=True, timeout=120)
 
-        # Шаг 2: устанавливаем форк через pip (не uv!)
-        self._print("[*] Компилирую SageAttention-SM75 (CUDA под sm_75)...")
+        # Шаг 2: клонируем репозиторий (если ещё не склонирован)
+        if os.path.isdir(self.SAGE_SRC):
+            self._print("[*] Репозиторий уже склонирован — делаю git pull...")
+            subprocess.run(["git", "-C", self.SAGE_SRC, "pull", "--ff-only"],
+                           capture_output=True, text=True, timeout=60)
+        else:
+            self._print("[*] Клонирую SageAttention-SM75-path...")
+            clone = subprocess.run(
+                ["git", "clone", repo_url, self.SAGE_SRC],
+                capture_output=True, text=True, timeout=120)
+            if clone.returncode != 0:
+                err = (clone.stderr or "").strip()[:200]
+                self._print(f"[!] Клонирование не удалось: {err}")
+                return
+
+        # Шаг 3: собираем через pip install . с полным логом
+        self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
         result = subprocess.run(
-            [VENV_PYTHON, "-m", "pip", "install", "--no-build-isolation", repo],
-            capture_output=True, text=True, timeout=600)
+            [VENV_PYTHON, "-m", "pip", "install", "-e", ".",
+             "-v", "--no-build-isolation"],
+            cwd=self.SAGE_SRC,
+            capture_output=True, text=True, timeout=900)
+
+        # Печатаем полный лог (последние 50 строк)
+        log = (result.stdout or "").strip()
+        err = (result.stderr or "").strip()
+        for line in (log + "\n" + err).split("\n")[-50:]:
+            self._print(f"  {line}")
 
         if result.returncode == 0:
             verify = subprocess.run(
@@ -670,8 +696,7 @@ class ComfyLauncher:
                 self.sage_ok = True
                 return
 
-        err = (result.stderr or "").strip()[:300]
-        self._print(f"[!] SageAttention НЕ установился: {err}")
+        self._print(f"[!] Сборка не удалась (код {result.returncode})")
         self._print("[!] Запускаю со split-cross-attention (без Sage)")
         self._set_status("⚠️ SageAttention не установлен — работаю без него",
                          "#f39c12")
