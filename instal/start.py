@@ -720,20 +720,37 @@ class ComfyLauncher:
 
         # Шаг 4: собираем CUDA-расширение напрямую (без editable wheel)
         self._print("[*] Компилирую CUDA-ядро под sm_75 (это может занять 5-10 мин)...")
-        self._print("[*] Если упадёт — ищи строки с error: в логе ниже")
         result = subprocess.run(
             [VENV_PYTHON, "setup.py", "build_ext", "--inplace"],
             cwd=self.SAGE_SRC,
             capture_output=True, text=True, timeout=900)
 
-        # Печатаем полный лог (последние 100 строк)
+        # Сохраняем полный лог в файл (на случай обрезания в stdout)
         log = (result.stdout or "").strip()
         err = (result.stderr or "").strip()
         full = log + "\n" + err
-        # Ищем строки с ошибками
+        log_path = os.path.join(self.SAGE_SRC, "build_sm75.log")
+        with open(log_path, "w", encoding="utf-8") as f:
+            f.write("=== STDOUT ===\n" + log + "\n=== STDERR ===\n" + err)
+        self._print(f"[*] Полный лог сохранён в {log_path}")
+
+        # Ищем строки с ошибками компиляции (не Python traceback)
         errors = [l for l in full.split("\n") if "error" in l.lower()]
-        for line in errors[-20:]:
-            self._print(f"  ⛔ {line}")
+        # Показываем ТОЛЬКО строки с компиляторными ошибками (C++/CUDA/nvcc/ninja)
+        compile_errors = [
+            l for l in errors
+            if any(x in l.lower() for x in [": error:", "fatal error", "nvcc error",
+                                            "c++ error", "cuda error", "cc1plus"])
+        ]
+        if compile_errors:
+            self._print("[!] ОШИБКИ КОМПИЛЯЦИИ:")
+            for line in compile_errors[-30:]:
+                self._print(f"  ⛔ {line}")
+        else:
+            # Если нет — показываем последние 20 error-строк
+            self._print("[*] Ошибок компиляции не найдено, показываю последние строки:")
+            for line in errors[-20:]:
+                self._print(f"  ⛔ {line}")
         # и последние 30 строк лога
         self._print("[... последние строки лога ...]")
         for line in full.split("\n")[-30:]:
