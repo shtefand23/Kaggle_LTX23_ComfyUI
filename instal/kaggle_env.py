@@ -342,14 +342,31 @@ def ensure_venv():
     return False
 
 
+def torch_cuda_ok():
+    """Проверяет, что torch установлен в venv и видит CUDA.
+
+    Используется после пересоздания venv или после прерванной установки,
+    чтобы не пропустить переустановку, если torch битый/отсутствует.
+    """
+    if not venv_python_ok():
+        return False
+    try:
+        subprocess.run(
+            [VENV_PYTHON, "-c", "import torch; assert torch.cuda.is_available()"],
+            check=True, capture_output=True, timeout=120)
+        return True
+    except (subprocess.SubprocessError, OSError):
+        return False
+
+
 def install_python():
     """Гарантирует рабочий Python: uv в PATH + venv (создан/починен/пересоздан).
 
     Единая точка входа для всех трёх скриптов (instal_comfyui.py,
     instal_castom_node.py, start.py). Внутри вызывает:
-      1. ensure_uv()   — ставит uv-бинарь (если нет / битый),
-      2. ensure_venv() — проверяет venv, чинит +x, переустанавливает
-                         CPython, при необходимости пересоздаёт venv.
+       1. ensure_uv()   — ставит uv-бинарь (если нет / битый),
+       2. ensure_venv() — проверяет venv, чинит +x, переустанавливает
+                          CPython, при необходимости пересоздаёт venv.
 
     Идемпотентна и максимально дёшева: если всё уже работает — ничего не делает.
 

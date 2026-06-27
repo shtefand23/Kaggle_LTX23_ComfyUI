@@ -63,6 +63,12 @@ sys.path.insert(0, _KE_DIR)
 import kaggle_env as ke
 ke.setup_env()
 
+# Импортируем утилиты из общего модуля
+from kaggle_env import (
+    COMFY_DIR, VENV_PYTHON, UV_LOCAL_DIR,
+    torch_cuda_ok, venv_python_ok,
+)
+
 # ----------------------------------------------------------------------
 # Пути и параметры
 # ----------------------------------------------------------------------
@@ -231,9 +237,11 @@ class ComfyLauncher:
         body = html.escape("\n".join(lines))
         return (
             "<pre style='margin:0; padding:6px; white-space:pre-wrap; "
-            "word-break:break-word; background:#0f1117; color:#ddd; "
+            "word-break:break-all; overflow-x:auto; overflow-y:auto; "
+            "max-height:100%; box-sizing:border-box; "
+            "background:#0f1117; color:#ddd; "
             "font-family:monospace; font-size:12px; line-height:1.35; "
-            "min-height:100%;'>" + body + "</pre>"
+            "min-height:360px;'>" + body + "</pre>"
         )
 
     # ------------------------------------------------------------------
@@ -477,6 +485,20 @@ class ComfyLauncher:
             if not os.path.exists(path):
                 raise RuntimeError(msg)
         self._print("[*] Файлы ComfyUI и рабочий venv на месте")
+
+        # Проверка torch: venv цел, но torch не видит CUDA
+        # (например, после прерванной KeyboardInterrupt установки).
+        if not torch_cuda_ok():
+            self._set_status("⚙️ torch не видит CUDA — переустанавливаю...",
+                             "#f39c12")
+            self._print("[!] torch не видит CUDA — запускаю установщик "
+                        "(прерванная установка?)")
+            self._run_installer()
+            self._set_status("⚙️ Переустанавливаю зависимости "
+                             "кастомных нод...", "#f39c12")
+            self._print("[!] torch переустановлен — переустанавливаю "
+                        "зависимости кастомных нод")
+            self._run_node_installer()
 
         # Кастомные ноды (ШАГ 2). Если каких-то нод из списка нет —
         # автоматически доустанавливаем через instal_castom_node.py.
