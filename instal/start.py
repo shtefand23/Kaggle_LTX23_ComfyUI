@@ -780,12 +780,6 @@ class ComfyLauncher:
 
         self._print(f"[!] Build failed (code {result.returncode})")
         self._print("[!] Falling back to split-cross-attention (no Sage)")
-        self._set_status("SageAttention not installed - running without it",
-                         "#f39c12")
-        self._print("[!] Falling back to split-cross-attention (no Sage)")
-        self._set_status("SageAttention not installed - running without it", "#f39c12")
-
-        self._print("[!] Falling back to split-cross-attention (no Sage)")
         self._set_status("⚠️ SageAttention not installed - running without it",
                          "#f39c12")
 

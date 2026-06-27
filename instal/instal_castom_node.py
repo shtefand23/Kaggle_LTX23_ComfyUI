@@ -157,8 +157,6 @@ def make_symlink(src, dst):
     log(f"Ссылка: {os.path.basename(dst)}")
 
 
-
-
 # ----------------------------------------------------------------------
 # Авто-вставка SageAttention-T4 в workflow
 # ----------------------------------------------------------------------
@@ -269,34 +267,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# ----------------------------------------------------------------------
-# Auto-insert SageAttention-T4 into ComfyUI workflows
-# ----------------------------------------------------------------------
-def inject_sageattn_into_workflows():
-    print()
-    print('\033[96m=== Auto-insert SageAttention-T4 into workflow ===[0m', flush=True)
-
-    sage_node_dir = os.path.join(NODES_DIR, "SageAttention-T4")
-    if not os.path.isdir(sage_node_dir):
-        warn("SageAttention-T4 node not found in custom_nodes - skipping injection")
-        return
-
-    injector = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        "scripts", "inject_sageattn_workflow.py"
-    )
-
-    if not os.path.exists(injector):
-        warn(f"Injector script not found: {injector}")
-        return
-
-    workflows_dir = os.path.join(COMFY_DIR, "user", "default", "workflows")
-    if not os.path.isdir(workflows_dir):
-        warn(f"Workflow directory not found: {workflows_dir}")
-        log("Save a workflow in ComfyUI and re-run this script")
-        return
-
-    run([sys.executable, injector, workflows_dir], check=False)
 
