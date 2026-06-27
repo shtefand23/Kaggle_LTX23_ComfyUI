@@ -241,12 +241,19 @@ class ComfyLauncher:
             "max-height:100%; box-sizing:border-box; "
             "background:#0f1117; color:#ddd; "
             "font-family:monospace; font-size:12px; line-height:1.35; "
-            "min-height:360px;'>" + body + "</pre>"
+            "min-height:100%; height:100%;'>" + body + "</pre>"
         )
 
     # ------------------------------------------------------------------
     # Лог: дешёвая запись в буфер из любого потока + троттлинг-перерисовка
     # ------------------------------------------------------------------
+    _ANSI_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
+    @staticmethod
+    def _strip_ansi(text):
+        """Удаляет ANSI escape-последовательности (цвета, курсор и т.д.)"""
+        return ComfyLauncher._ANSI_RE.sub('', text)
+
     def _print(self, text):
         """Кладёт строки в буфер (дёшево, без I/O в виджет).
 
@@ -257,6 +264,9 @@ class ComfyLauncher:
             # tqdm/прогресс пишут через '\r' без перевода строки — берём только
             # последний сегмент, иначе бар копится одной гигантской строкой.
             seg = raw.split("\r")[-1].rstrip()
+            if seg == "":
+                continue
+            seg = self._strip_ansi(seg)
             if seg == "":
                 continue
             with self._log_lock:
@@ -414,16 +424,26 @@ class ComfyLauncher:
         if not os.path.exists(path):
             raise RuntimeError(f"Установщик не найден: {path}. {hint}")
         self._print(f"[*] Запускаю: {path}")
+        # os.setpgrp изолирует дочерний процесс от SIGINT (Kaggle Interrupt),
+        # чтобы Ctrl+C / ⏹ не убивал установку (torch и т.д.).
+        try:
+            preexec_fn = os.setpgrp
+        except AttributeError:
+            preexec_fn = None  # Windows — не поддерживается
         proc = subprocess.Popen(
             [sys.executable, path],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1,
+            preexec_fn=preexec_fn,
         )
-        for line in iter(proc.stdout.readline, ""):
-            if line:
-                self._print(f"[{label}] {line.rstrip()}")
-            if proc.poll() is not None and not line:
-                break
+        try:
+            for line in iter(proc.stdout.readline, ""):
+                if line:
+                    self._print(f"[{label}] {line.rstrip()}")
+                if proc.poll() is not None and not line:
+                    break
+        except OSError:
+            pass  # subprocess terminated, stream closed
         proc.wait()
         if proc.returncode != 0:
             raise RuntimeError(
