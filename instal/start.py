@@ -163,7 +163,7 @@ class ComfyLauncher:
             value=self._log_html([]),
             layout=widgets.Layout(
                 border="1px solid #444", height="360px",
-                overflow="auto", padding="0",
+                overflow="hidden", padding="0",
             ),
         )
 
@@ -234,11 +234,12 @@ class ComfyLauncher:
         body = html.escape("\n".join(lines))
         return (
             "<pre style='margin:0; padding:6px; white-space:pre-wrap; "
-            "word-break:break-word; overflow-wrap:anywhere; overflow-x:auto; overflow-y:auto; "
-            "max-height:100%; box-sizing:border-box; "
+            "word-break:break-word; overflow-wrap:anywhere; "
+            "height:100%; max-height:360px; overflow-y:auto; "
+            "box-sizing:border-box; "
             "background:#0f1117; color:#ddd; "
-            "font-family:monospace; font-size:12px; line-height:1.35; "
-            "min-height:100%;'>" + body + "</pre>"
+            "font-family:monospace; font-size:12px; line-height:1.35;'>"
+            + body + "</pre>"
         )
 
     # ------------------------------------------------------------------
