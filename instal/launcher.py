@@ -405,11 +405,11 @@ class ComfyLauncher:
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 4. Запуск ComfyUI
+    # 4. Запуск ComfyUI (чистый, без флагов ускорения)
     # ------------------------------------------------------------------
     def _start_comfy(self):
         self._log_step("Шаг 5/6: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
-        self.logger.print("  → Режим: split-cross-attention (экономия VRAM на T4)")
+        self.logger.print("  → Режим: чистый запуск, без флагов")
 
         comfy_args = [
             VENV_PYTHON, "main.py",
@@ -417,11 +417,6 @@ class ComfyLauncher:
             "--port", str(PORT),
             "--enable-cors-header", "*",
             "--disable-auto-launch",
-            # --use-split-cross-attention — стандартный флаг ComfyUI
-            # для экономии VRAM на T4. Не «ускорение», а совместимость.
-            # Без него дефолтный attention жрёт больше памяти, и Kaggle
-            # OOM-killer убивает процесс (SIGKILL -9).
-            "--use-split-cross-attention",
         ]
 
         cmd_str = " ".join(comfy_args)
