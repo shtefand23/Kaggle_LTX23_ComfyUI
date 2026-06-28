@@ -239,7 +239,8 @@ class LogManager:
     def print(self, text):
         """Кладёт строки в буфер. Флешер перерисовывает виджет.
 
-        Дублирует строки в sys.stdout (видно в ячейке) и в persistent-файл.
+        Лог выводится ТОЛЬКО в виджет (widgets.HTML) и в persistent-файл.
+        Без sys.stdout — иначе строки дублируются под виджетом.
         """
         for raw in str(text).split("\n"):
             seg = raw.split("\r")[-1].rstrip()
@@ -248,8 +249,6 @@ class LogManager:
             seg = self._strip_ansi(seg)
             if not seg:
                 continue
-            # Пишем в stdout — всегда видно в ячейке
-            sys.stdout.write(f"{seg}\n")
             with self._log_lock:
                 self._log_lines.append(seg)
                 self._log_dirty = True
