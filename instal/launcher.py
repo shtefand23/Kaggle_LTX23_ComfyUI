@@ -199,12 +199,15 @@ class ComfyLauncher:
                 self.logger.stream_script(INSTALLER, "INSTALL",
                     "Запусти вручную: !python instal/instal_comfyui.py")
 
-        for path, msg in (
-            (COMFY_DIR, "ComfyUI не найден — запусти instal/instal_comfyui.py"),
-            (f"{COMFY_DIR}/main.py", "main.py не найден"),
-        ):
-            if not os.path.exists(path):
-                raise RuntimeError(msg)
+        # Если ComfyUI не установлен — авто-установка через instal_comfyui.py.
+        # Скрипт ИДЕМПОТЕНТЕН: если всё уже есть — пропустит лишнюю работу.
+        if not os.path.exists(f"{COMFY_DIR}/main.py"):
+            self.logger.set_status("⚙️ ComfyUI не найден — устанавливаю...", "#f39c12")
+            self.logger.print("[!] ComfyUI не найден — запускаю instal_comfyui.py")
+            self.logger.stream_script(INSTALLER, "INSTALL",
+                "Запусти вручную: !python instal/instal_comfyui.py")
+            self.logger.print("[*] ComfyUI установлен")
+
         self.logger.print("[*] Файлы ComfyUI и рабочий venv на месте")
 
         # Проверка torch: venv цел, но torch не видит CUDA
