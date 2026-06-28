@@ -74,3 +74,8 @@ docs-site/dist/
 .vite/
 SageAttention-SM75-path/
 
+
+# --- Playwright browser test artifacts ---
+.playwright-mcp/
+kaggle-session-check*.json
+console-*.log
