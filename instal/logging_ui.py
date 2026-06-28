@@ -36,8 +36,12 @@ from IPython.display import display
 # ----------------------------------------------------------------------
 # Настройки лога — меняй здесь, не в start.py
 # ----------------------------------------------------------------------
-LOG_MAX_LINES = 300      # сколько последних строк держим в буфере
+LOG_MAX_LINES = 2000     # сколько последних строк держим в буфере
 LOG_FLUSH_SEC = 0.5      # как часто перерисовываем виджет лога
+
+# Путь к persistent-файлу лога (сохраняет ВСЕ строки, не только последние).
+# Лежит в /kaggle/working — переживает рестарт сессии.
+LOG_FILE_PATH = "/kaggle/working/comfyui_launcher.log"
 
 
 class LogManager:
@@ -59,6 +63,9 @@ class LogManager:
         # Флаг остановки — из него же читают heartbeat/keep-alive потоки
         self.stopped = False
 
+        # Persistent-файл лога — сохраняет ВСЕ строки на диск
+        self._log_file = self._open_log_file()
+
         # Ссылка на внешний обработчик для кнопки «Остановить» / «Перезапустить».
         # Устанавливается из launcher.py после создания LogManager.
         self.on_stop_callback = None
@@ -66,6 +73,34 @@ class LogManager:
 
         # --- Собираем UI ---
         self._build_ui()
+
+    # ------------------------------------------------------------------
+    # Persistent-лог в файл (все строки, не только последние 2000)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _open_log_file():
+        """Открывает файл лога в /kaggle/working для дописывания.
+
+        Если файл открыть не удалось (не Kaggle, нет прав) — тихо
+        возвращаем None, лог пишется только в виджет.
+        """
+        try:
+            f = open(LOG_FILE_PATH, "a", encoding="utf-8")
+            f.write(f"\n--- Запуск {datetime.now()} ---\n")
+            f.flush()
+            return f
+        except OSError:
+            return None
+
+    def _close_log_file(self):
+        """Закрывает файл лога."""
+        if self._log_file:
+            try:
+                self._log_file.write(f"--- Остановка {datetime.now()} ---\n\n")
+                self._log_file.close()
+            except OSError:
+                pass
+            self._log_file = None
 
     # ------------------------------------------------------------------
     # Сборка UI
@@ -204,6 +239,10 @@ class LogManager:
 
         Перерисовка виджета делается отдельным потоком-флешером, чтобы
         поток строк (включая tqdm) не вешал блокнот.
+
+        Одновременно дублирует строки в persistent-файл лога
+        (/kaggle/working/comfyui_launcher.log) — пригодится для
+        диагностики после того, как виджет очищен или скролл ушёл.
         """
         for raw in str(text).split("\n"):
             # tqdm пишет через '\r' без \n — берём только последний сегмент
@@ -216,6 +255,13 @@ class LogManager:
             with self._log_lock:
                 self._log_lines.append(seg)
                 self._log_dirty = True
+                # Дублируем в файл (если открыт)
+                if self._log_file:
+                    try:
+                        self._log_file.write(f"{seg}\n")
+                        self._log_file.flush()
+                    except OSError:
+                        pass
 
     def _flush_log_now(self):
         """Сбрасывает буфер в виджет лога.
@@ -350,3 +396,12 @@ class LogManager:
             self._flush_log_now()
         except Exception:
             pass
+
+    def stop(self):
+        """Останавливает лог: сбрасывает буфер и закрывает файл.
+
+        Звать из launcher при остановке ComfyUI.
+        """
+        self.stopped = True
+        self.flush_now()
+        self._close_log_file()

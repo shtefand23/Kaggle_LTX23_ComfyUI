@@ -26,6 +26,7 @@ import socket
 import subprocess
 import sys
 import time
+import traceback
 from threading import Event, Thread
 
 # Общий модуль — единый источник путей
@@ -107,7 +108,10 @@ class ComfyLauncher:
             # При ошибке убиваем ВСЕ уже запущенные процессы
             self._kill_processes()
             self.logger.set_status(f"❌ Ошибка запуска: {e}", "#e74c3c")
-            self.logger.print(f"[ERROR] {e}")
+            # Полный traceback в лог — чтобы видеть, где именно упало
+            self.logger.print(f"[ERROR] {e}\n{traceback.format_exc()}")
+            # И в консоль (если кто-то смотрит stdout ячейки)
+            traceback.print_exc()
         finally:
             self._starting = False
             self.logger.restart_btn.disabled = False
@@ -482,7 +486,8 @@ class ComfyLauncher:
         self.logger.set_status("🛑 ComfyUI остановлен. Запусти ячейку заново.",
                                "#e74c3c")
         self.logger.print("[*] ComfyUI и туннель остановлены.")
-        self.logger.flush_now()
+        # Полная остановка лога: сброс буфера + закрытие файла
+        self.logger.stop()
 
     # ------------------------------------------------------------------
     # Кнопка «Перезапустить»
