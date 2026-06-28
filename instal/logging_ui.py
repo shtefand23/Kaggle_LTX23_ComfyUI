@@ -23,6 +23,7 @@ UI-обвязка и система логирования для ComfyUI на K
 import os
 import re
 import subprocess
+import sys
 import time
 from collections import deque
 from datetime import datetime
