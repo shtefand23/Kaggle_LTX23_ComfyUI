@@ -25,13 +25,31 @@ import os
 import sys
 
 # ----------------------------------------------------------------------
-# 1. Настройка окружения (uv, PATH, /kaggle/working/bin)
+# 0. Сброс stale-кэша модулей и .pyc
 # ----------------------------------------------------------------------
 try:
     _KE_DIR = os.path.dirname(os.path.abspath(__file__))
 except NameError:
     _KE_DIR = "/kaggle/working/instal"
 sys.path.insert(0, _KE_DIR)
+
+# После git pull в той же сессии Jupyter старые .py файлы обновлены,
+# но sys.modules хранит закешированные старые модули (без import sys).
+# Выкидываем их — Python перечитает свежие .py при следующем импорте.
+_INSTAL_MODULES = [
+    "kaggle_env", "logging_ui", "launcher", "sage_installer",
+    "instal_comfyui", "instal_castom_node",
+]
+for _m in _INSTAL_MODULES:
+    if _m in sys.modules:
+        del sys.modules[_m]
+
+# Заодно чистим __pycache__ — от stale .pyc (кэш переживает git pull
+# и Python может не перекомпилировать, если timestamp совпадает).
+_pycache = os.path.join(_KE_DIR, "__pycache__")
+if os.path.isdir(_pycache):
+    import shutil
+    shutil.rmtree(_pycache, ignore_errors=True)
 
 import kaggle_env as ke
 
