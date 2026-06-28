@@ -243,6 +243,10 @@ class LogManager:
         Одновременно дублирует строки в persistent-файл лога
         (/kaggle/working/comfyui_launcher.log) — пригодится для
         диагностики после того, как виджет очищен или скролл ушёл.
+
+        **ВАЖНО**: Сразу пишет в sys.stdout — гарантирует, что логи
+        видны в ячейке даже если виджет не обновляется (проблема с
+        прокачкой событий ядра в keep-alive).
         """
         for raw in str(text).split("\n"):
             # tqdm пишет через '\r' без \n — берём только последний сегмент
@@ -252,6 +256,9 @@ class LogManager:
             seg = self._strip_ansi(seg)
             if not seg:
                 continue
+            # Прямой вывод в stdout — логи ВСЕГДА видны в ячейке
+            sys.stdout.write(f"{seg}\n")
+            sys.stdout.flush()
             with self._log_lock:
                 self._log_lines.append(seg)
                 self._log_dirty = True

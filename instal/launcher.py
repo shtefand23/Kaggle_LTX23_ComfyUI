@@ -597,7 +597,12 @@ class ComfyLauncher:
     # keep-alive: держит ячейку активной
     # ------------------------------------------------------------------
     def _make_kernel_pump(self):
-        """Прокачивает события ядра, чтобы кнопки-виджеты отвечали."""
+        """Прокачивает события ядра, чтобы кнопки-виджеты отвечали.
+
+        Возвращает callable pump() или None.
+        None — не критично: LogManager.print() дублирует логи в stdout
+        напрямую, так что даже без pump пользователь видит вывод.
+        """
         try:
             try:
                 import nest_asyncio
@@ -608,29 +613,47 @@ class ComfyLauncher:
 
             from IPython import get_ipython
             ip = get_ipython()
-            if ip is None or not hasattr(ip, "kernel"):
+            if ip is None:
                 return None
-            kernel = ip.kernel
+            kernel = getattr(ip, "kernel", None)
+            if kernel is None:
+                return None
+
             nest_asyncio.apply()
-            loop = asyncio.get_event_loop()
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
 
             def pump():
-                res = kernel.do_one_iteration()
-                if asyncio.iscoroutine(res):
-                    loop.run_until_complete(res)
+                try:
+                    res = kernel.do_one_iteration()
+                    if asyncio.iscoroutine(res):
+                        loop.run_until_complete(res)
+                except Exception:
+                    pass  # Ядро ещё не готово — пропускаем тик
 
             return pump
         except Exception:
             return None
 
     def _keep_alive(self):
-        """Держит ячейку активной, чтобы Kaggle не усыпил сессию."""
+        """Держит ячейку активной, чтобы Kaggle не усыпил сессию.
+
+        Всегда прокачивает события ядра (виджеты работают).
+        Даже если pump не удался — логи всё равно доходят через
+        прямой вывод в sys.stdout из LogManager.print().
+        """
         pump = self._make_kernel_pump()
         if pump is None:
-            self.logger.print("[!] Обработку кнопок в keep-alive включить не удалось — "
-                        "для остановки используй ⏹ (Interrupt).")
-        self.logger.print("[*] keep-alive активен — Kaggle не уснёт. "
-                    "Останови кнопкой или ⏹ (Interrupt).")
+            print("\n⚠️ [KEEP-ALIVE] Widget pump не работает — "
+                  "логи через прямой stdout\n", flush=True)
+        else:
+            self.logger.print("[*] keep-alive активен — Kaggle не уснёт. "
+                        "Останови кнопкой или ⏹ (Interrupt).")
+
+        last_stdout_flush = time.time()
         try:
             while not self.stopped:
                 if pump is not None:
@@ -638,8 +661,16 @@ class ComfyLauncher:
                         pump()
                     except Exception:
                         time.sleep(0.2)
+
+                # Форсированный сброс stdout каждые 3с — гарантирует,
+                # что логи доходят даже при сбое pump
+                now = time.time()
+                if now - last_stdout_flush >= 3:
+                    sys.stdout.flush()
+                    last_stdout_flush = now
+
                 time.sleep(0.05)
         except KeyboardInterrupt:
-            self.logger.print("[*] Interrupt — останавливаю ComfyUI и туннель...")
+            print("[*] Interrupt — останавливаю ComfyUI и туннель...", flush=True)
             self._on_stop()
         self.logger.flush_now()
