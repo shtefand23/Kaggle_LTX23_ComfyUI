@@ -9,10 +9,10 @@ UI-обвязка и система логирования для ComfyUI на K
   * Лог — widgets.HTML (НЕ Output!). .value = html работает из любого
     потока через iopub, не требует event-loop pump.
   * Статус, heartbeat, URL — тоже widgets.HTML (те же преимущества).
-  * Кнопки‑виджеты (Button) НЕ РАБОТАЮТ без nest_asyncio + pump,
-    который ломает ячейку. Поэтому используем ⏹ Interrupt в тулбаре
-    Kaggle + HTML-инструкцию.
-  * Keep-alive: простой time.sleep(0.1) + flush, никаких pump.
+  * Кнопки — widgets.Button с on_click. Работают, потому что ячейка
+    НЕ блокируется (завершается сразу после display()), и kernel
+    обрабатывает сообщения от frontend.
+  * Keep-alive: фоновые потоки (_heartbeat_loop, _stdout_keep_alive).
   * Два anti-sleep маяка: heartbeat (через widgets.HTML) + stdout print.
 
 Фикс бага лога (история):
@@ -63,6 +63,10 @@ class LogManager:
 
         self.stopped = False
 
+        # Callback'и для кнопок (устанавливаются из launcher.py)
+        self.on_stop_callback = None
+        self.on_restart_callback = None
+
         # Persistent-файл лога
         self._log_file = self._open_log_file()
 
@@ -95,7 +99,7 @@ class LogManager:
             self._log_file = None
 
     # ------------------------------------------------------------------
-    # Сборка UI — ТОЛЬКО widgets.HTML (не Button, не Output!)
+    # Сборка UI — widgets.HTML для лога + widgets.Button для кнопок
     # ------------------------------------------------------------------
     def _build_ui(self):
         # Статус
@@ -111,15 +115,24 @@ class LogManager:
             "Публичная ссылка появится здесь...</div>"
         )
 
-        # Кнопки — НЕ widgets.Button (не работают без pump).
-        # Вместо них — HTML-блок с инструкцией по Interrupt.
-        self.controls = widgets.HTML(
-            "<div style='margin:8px 0; padding:8px 12px; "
-            "background:#1a1a2e; border-radius:6px; font-size:13px;'>"
-            "<span style='color:#e74c3c; font-weight:bold'>⏹ Остановка:</span> "
-            "<span style='color:#ccc'>нажми ⏹ (Interrupt) в тулбаре Kaggle</span>"
-            "</div>"
+        # Кнопка «Остановить»
+        self.stop_btn = widgets.Button(
+            description="🛑 Остановить",
+            button_style="danger",
+            layout=widgets.Layout(width="160px", height="42px"),
         )
+        self.stop_btn.on_click(self._on_stop_click)
+
+        # Кнопка «Перезапустить»
+        self.restart_btn = widgets.Button(
+            description="🔄 Перезапустить",
+            button_style="warning",
+            layout=widgets.Layout(width="180px", height="42px"),
+        )
+        self.restart_btn.on_click(self._on_restart_click)
+
+        # Ряд кнопок: ссылка + остановить + перезапустить
+        self.controls = widgets.HBox([self.url_box, self.stop_btn, self.restart_btn])
 
         # Лог — widgets.HTML (НЕ Output!). .value = html обновляется
         # из флешера — работает через iopub, не требует pump.
@@ -135,7 +148,6 @@ class LogManager:
         self.panel = widgets.VBox([
             self.status,
             self.heartbeat,
-            self.url_box,
             self.controls,
             widgets.HTML("<b>Лог:</b>"),
             self.log,
@@ -199,6 +211,32 @@ class LogManager:
             "<div style='font-style:italic; color:#555'>"
             "ComfyUI остановлен.</div>"
         )
+
+    # ------------------------------------------------------------------
+    # Обработчики кнопок — вызывают callback'и из launcher.py
+    # ------------------------------------------------------------------
+    def _on_stop_click(self, _btn):
+        if self.on_stop_callback:
+            self.on_stop_callback()
+
+    def _on_restart_click(self, _btn):
+        if self.on_restart_callback:
+            self.on_restart_callback()
+
+    # ------------------------------------------------------------------
+    # Состояние кнопок (disabled/enabled)
+    # ------------------------------------------------------------------
+    def disable_stop_btn(self):
+        self.stop_btn.disabled = True
+
+    def enable_stop_btn(self):
+        self.stop_btn.disabled = False
+
+    def disable_restart_btn(self):
+        self.restart_btn.disabled = True
+
+    def enable_restart_btn(self):
+        self.restart_btn.disabled = False
 
     # ------------------------------------------------------------------
     # Heartbeat (anti-sleep через widgets.HTML)

@@ -14,8 +14,8 @@ launcher.py
 Пути — ТОЛЬКО из kaggle_env (единый источник правды).
 UI и логи — через LogManager (logging_ui.py).
 Виджеты: widgets.HTML для лога, статуса, heartbeat, URL.
-Кнопки: НЕ widgets.Button (не работают без pump) — только Interrupt.
-Остановка — ⏹ Interrupt в тулбаре Kaggle.
+Кнопки: widgets.Button для остановки и перезапуска.
+Остановка — кнопка «🛑 Остановить» в панели.
 =================================================================
 """
 
@@ -65,8 +65,10 @@ class ComfyLauncher:
         self.public_url = None
         self.stopped = False
         self._starting = False
-        # UI + логи (без ipywidgets — чистый HTML + stdout)
+        # UI + логи
         self.logger = LogManager()
+        self.logger.on_stop_callback = self._on_stop
+        self.logger.on_restart_callback = self._on_restart
 
     # ------------------------------------------------------------------
     # Helpers консольного логирования
@@ -92,12 +94,12 @@ class ComfyLauncher:
     # Публичная точка входа
     # ------------------------------------------------------------------
     def launch(self):
-        # Панель рисуется в __init__ LogManager через display(HTML, display_id=...)
+        # Панель рисуется в __init__ LogManager через display()
+        # Все потоки daemon — живут, пока жив kernel.
+        # Ячейка НЕ блокируется, kernel обрабатывает on_click кнопок.
         Thread(target=self.logger._heartbeat_loop, daemon=True).start()
         Thread(target=self.logger._stdout_keep_alive, daemon=True).start()
         Thread(target=self._startup, daemon=True).start()
-
-        self._keep_alive()
 
     # ------------------------------------------------------------------
     # Запуск (в фоновом потоке)
@@ -547,32 +549,35 @@ class ComfyLauncher:
             subprocess.run(["pkill", "-9", "-f", pat], capture_output=True)
 
     # ------------------------------------------------------------------
-    # keep-alive: держит ячейку активной
+    # Кнопка «Остановить»
     # ------------------------------------------------------------------
-    def _keep_alive(self):
-        """Держит ячейку активной, чтобы Kaggle не усыпил сессию.
+    def _on_stop(self):
+        if self.stopped:
+            return
+        self.stopped = True
+        self.logger.set_status("⏳ Останавливаю ComfyUI...", "#f39c12")
+        self.logger.disable_stop_btn()
+        self._kill_processes()
+        self.logger.hide_url()
+        self.logger.set_status("🛑 ComfyUI остановлен. Нажми «Перезапустить».",
+                               "#e74c3c")
+        self.logger.print("[*] ComfyUI и туннель остановлены.")
 
-        Максимально простой цикл: только sleep + flush stdout.
-        Без nest_asyncio, без kernel.do_one_iteration — эти вызовы
-        ломают цикл событий Jupyter и ячейка преждевременно завершается.
-
-        Остановка через ⏹ (Interrupt) в тулбаре Kaggle:
-        KeyboardInterrupt → _kill_processes() → выход.
-        """
-        print("[*] keep-alive активен — Kaggle не уснёт. "
-              "Останови ⏹ (Interrupt) в тулбаре Kaggle.", flush=True)
-        try:
-            while not self.stopped:
-                time.sleep(0.1)
-                try:
-                    sys.stdout.flush()
-                except Exception:
-                    pass
-        except KeyboardInterrupt:
-            print("[*] Interrupt — останавливаю ComfyUI и туннель...", flush=True)
-            self._kill_processes()
-            self.logger.hide_url()
-            self.logger.set_status("🛑 ComfyUI остановлен. Запусти ячейку заново.",
-                                   "#e74c3c")
-            self.logger.print("[*] ComfyUI и туннель остановлены.")
-        self.logger.stop()
+    # ------------------------------------------------------------------
+    # Кнопка «Перезапустить»
+    # ------------------------------------------------------------------
+    def _on_restart(self):
+        if self._starting:
+            return
+        self.logger.disable_restart_btn()
+        self.logger.set_status("🔄 Перезапуск ComfyUI...", "#f39c12")
+        self.logger.print("[*] Перезапуск: гашу старые процессы...")
+        self._kill_processes()
+        # Сброс состояния под новый запуск
+        self.stopped = False
+        self.public_url = None
+        self.comfy_proc = None
+        self.tunnel_proc = None
+        self.logger.hide_url()
+        self.logger.enable_stop_btn()
+        Thread(target=self._startup, daemon=True).start()
