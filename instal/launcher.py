@@ -421,6 +421,7 @@ class ComfyLauncher:
             "--port", str(PORT),
             "--enable-cors-header", "*",
             "--disable-auto-launch",
+            "--preview-method", "auto",
             # --use-split-cross-attention — не ускорение, а совместимость.
             # На T4 без него дефолтный attention жрёт больше памяти,
             # и Kaggle OOM-killer шлёт SIGKILL -9.

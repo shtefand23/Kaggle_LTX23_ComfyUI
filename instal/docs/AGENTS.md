@@ -35,20 +35,39 @@ ComfyLauncher (launcher.py)
 ### 1. `_keep_alive()` ОБЯЗАТЕЛЕН в launch()
 Если `launch()` завершается — Kaggle видит, что ячейка простаивает >30 мин, и убивает сессию. `_keep_alive()` вызывается синхронно в конце `launch()` и блокирует поток.
 
-**Тело — только sleep + flush. Ничего лишнего:**
+**Внутри `_keep_alive()`: pump (обработка on_click) + sleep 0.05с.**
 ```python
 def _keep_alive(self):
+    pump = self._make_kernel_pump()
     while not self.stopped:
-        time.sleep(0.1)
-        sys.stdout.flush()
+        if pump is not None:
+            try:
+                pump()
+            except Exception:
+                time.sleep(0.2)
+        time.sleep(0.05)
 ```
 
-### 2. НИКОГДА не вызывать `Kernel.do_one_iteration()` из синхронного кода
-Это async корутина (IPython 8+). Из `_keep_alive()` не работает — только RuntimeWarning.
+### 2. `_make_kernel_pump()` — pump для on_click кнопок (ОБЯЗАТЕЛЕН)
+Без pump кнопки `on_click` не обрабатываются, пока ячейка в `_keep_alive()`.
 
-**Workflow:** кнопки on_click не работают, пока крутится `_keep_alive()`.
-- Нажать ⏹ **Interrupt** в тулбаре Kaggle → `_keep_alive()` получает KeyboardInterrupt, убивает процессы
-- Ячейка завершается → kernel свободен → **кнопки работают**
+Использует **nest_asyncio**, чтобы выполнить async-корутину `kernel.do_one_iteration()` из синхронного цикла:
+
+```python
+def _make_kernel_pump(self):
+    import nest_asyncio
+    nest_asyncio.apply()
+    loop = asyncio.get_event_loop()
+    def pump():
+        res = kernel.do_one_iteration()
+        if asyncio.iscoroutine(res):
+            loop.run_until_complete(res)
+    return pump
+```
+
+**Если pump не создать (None):** кнопки не работают — только ⏹ Interrupt.
+
+**История:** pump был в рабочем `start.py` с nest_asyncio, выброшен при рефакторинге в launcher.py — кнопки сломались. Вернули.
 
 ### 3. Лог — ТОЛЬКО `widgets.HTML`, НЕ `widgets.Output`
 - ✅ `widgets.HTML.value = html` — работает из любого потока через iopub
@@ -65,9 +84,21 @@ self.logger.print("[*] Сообщение")
 print("💓 keep-alive", flush=True)
 ```
 
-### 4. `--use-split-cross-attention` ОБЯЗАТЕЛЕН на T4
-Без него дефолтный attention жрёт больше VRAM → OOM-killer → SIGKILL -9.
-Это **не ускорение**, а совместимость. Не убирать.
+### 4. Флаги ComfyUI (проверены, работают)
+```python
+comfy_args = [
+    VENV_PYTHON, "main.py",
+    "--listen", "0.0.0.0",
+    "--port", str(PORT),
+    "--enable-cors-header", "*",
+    "--disable-auto-launch",
+    "--preview-method", "auto",
+    "--use-split-cross-attention",
+]
+```
+
+- `--preview-method auto` — авто-превью в ComfyUI (был в рабочем start.py, выпал при рефакторинге)
+- `--use-split-cross-attention` — **обязателен на T4.** Без него OOM-killer → SIGKILL -9. Это не ускорение, а совместимость.
 
 ### 5. Другие флаги — НЕ ДОБАВЛЯТЬ
 - `--fp16 / --bf16` — не нужны, ComfyUI сам выбирает точность
@@ -108,7 +139,8 @@ proc = subprocess.Popen([...], env=dict(os.environ, COMFY_AIMDO_ENABLED="0"))
 | widgets.Output с clear_output() | лог не обновляется | widgets.HTML.value = html |
 | sys.stdout.write() в LogManager.print() | дубли строк под виджетом | убрать sys.stdout.write() |
 | удалён _keep_alive() | Kaggle убивает сессию | вернуть sleep+flush |
-| ip.kernel.do_one_iteration() | RuntimeWarning: async | убрать pump |
+| pump выброшен при рефакторинге start.py → launcher.py | кнопки on_click не работали | вернуть _make_kernel_pump с nest_asyncio |
+| do_one_iteration() без nest_asyncio | RuntimeWarning: async | pump через nest_asyncio.apply() + loop.run_until_complete() |
 | env={...} в Popen для AIMDO | процесс падает с code 1 | os.environ["COMFY_AIMDO_ENABLED"] = "0" |
 | убран --use-split-cross-attention | OOM-killer SIGKILL -9 | вернуть флаг |
 | --gpu-only | CUDA illegal memory access | убрать флаг |
@@ -123,8 +155,8 @@ proc = subprocess.Popen([...], env=dict(os.environ, COMFY_AIMDO_ENABLED="0"))
    ```
 2. **Нет RuntimeWarning/DeprecationWarning** в тестовом прогоне
 3. **Логи — только в виджет:** нет sys.stdout.write / print в `LogManager.print()`
-4. **Нет pump:** нет `do_one_iteration` в коде
+4. **Pump работает:** `_make_kernel_pump()` есть, `nest_asyncio` устанавливается при необходимости
 5. **AIMDO отключён:** `os.environ["COMFY_AIMDO_ENABLED"] = "0"` на месте
-6. **split-cross-attention:** флаг `--use-split-cross-attention` в `_start_comfy()`
+6. **Флаги ComfyUI:** `--split-cross-attention` + `--preview-method auto` в `_start_comfy()`
 7. **keep-alive:** `self._keep_alive()` — последний вызов в `launch()`
 8. **Никаких новых флагов ускорения** без обоснования в этом файле
