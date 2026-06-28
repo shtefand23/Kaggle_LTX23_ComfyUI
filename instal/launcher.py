@@ -454,14 +454,17 @@ class ComfyLauncher:
         start = time.time()
         last_report = 0
         while True:
-            if self.comfy_proc.poll() is not None:
-                raise RuntimeError(
-                    f"ComfyUI завершился с кодом {self.comfy_proc.returncode}")
+            # Сначала проверяем порт — если открыт, ComfyUI работает,
+            # даже если poll() ошибочно вернул код (race condition restart).
             try:
                 with socket.create_connection(("127.0.0.1", PORT), timeout=2):
                     break
             except OSError:
                 pass
+            # Только потом проверяем процесс — но только если порт закрыт
+            if self.comfy_proc.poll() is not None:
+                raise RuntimeError(
+                    f"ComfyUI завершился с кодом {self.comfy_proc.returncode}")
             elapsed = time.time() - start
             if elapsed > STARTUP_TIMEOUT:
                 raise RuntimeError(f"Таймаут ({STARTUP_TIMEOUT}с)")
