@@ -8,14 +8,14 @@ launcher.py
 Содержит ComfyLauncher — класс, управляющий жизненным циклом:
   1. Проверка и ремонт окружения (venv, torch, ноды)
   2. Cloudflared туннель
-  3. SageAttention-SM75
-  4. Запуск ComfyUI + ожидание порта
-  5. Кнопки «Остановить» / «Перезапустить»
-  6. Keep-alive (anti-sleep)
+  3. Запуск ComfyUI + ожидание порта
+  4. Keep-alive (anti-sleep) + HTML-панель
 
 Пути — ТОЛЬКО из kaggle_env (единый источник правды).
 UI и логи — через LogManager (logging_ui.py).
-SageAttention — через sage_installer.py.
+Виджеты: widgets.HTML для лога, статуса, heartbeat, URL.
+Кнопки: НЕ widgets.Button (не работают без pump) — только Interrupt.
+Остановка — ⏹ Interrupt в тулбаре Kaggle.
 =================================================================
 """
 
@@ -57,7 +57,7 @@ AUTO_UPDATE_NODE_REQS = False
 
 
 class ComfyLauncher:
-    """Держит процессы, виджеты и весь жизненный цикл запуска/остановки."""
+    """Держит процессы и весь жизненный цикл запуска/остановки."""
 
     def __init__(self):
         self.comfy_proc = None
@@ -65,10 +65,8 @@ class ComfyLauncher:
         self.public_url = None
         self.stopped = False
         self._starting = False
-        # UI + логи
+        # UI + логи (без ipywidgets — чистый HTML + stdout)
         self.logger = LogManager()
-        self.logger.on_stop_callback = self._on_stop
-        self.logger.on_restart_callback = self._on_restart
 
     # ------------------------------------------------------------------
     # Helpers консольного логирования
@@ -94,24 +92,18 @@ class ComfyLauncher:
     # Публичная точка входа
     # ------------------------------------------------------------------
     def launch(self):
-        from IPython.display import display
-        display(self.logger.panel)
-
+        # Панель рисуется в __init__ LogManager через display(HTML, display_id=...)
         Thread(target=self.logger._heartbeat_loop, daemon=True).start()
         Thread(target=self.logger._stdout_keep_alive, daemon=True).start()
-        Thread(target=self.logger._log_flusher, daemon=True).start()
         Thread(target=self._startup, daemon=True).start()
 
         self._keep_alive()
-        return self.logger.panel
 
     # ------------------------------------------------------------------
     # Запуск (в фоновом потоке)
     # ------------------------------------------------------------------
     def _startup(self):
         self._starting = True
-        self.logger.stop_btn.disabled = False
-        self.logger.restart_btn.disabled = True
         _t_startup = time.time()
 
         self.logger.print(f"\n{'='*60}")
@@ -140,7 +132,6 @@ class ComfyLauncher:
             traceback.print_exc()
         finally:
             self._starting = False
-            self.logger.restart_btn.disabled = False
 
     # ------------------------------------------------------------------
     # 1. Убиваем старые процессы и чистим блокировки
@@ -412,11 +403,11 @@ class ComfyLauncher:
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 4. Запуск ComfyUI (чистый, без флагов ускорения)
+    # 4. Запуск ComfyUI
     # ------------------------------------------------------------------
     def _start_comfy(self):
         self._log_step("Шаг 5/6: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
-        self.logger.print("  → Режим: чистый запуск, флаги ускорения отключены")
+        self.logger.print("  → Режим: split-cross-attention (экономия VRAM на T4)")
 
         comfy_args = [
             VENV_PYTHON, "main.py",
@@ -424,6 +415,11 @@ class ComfyLauncher:
             "--port", str(PORT),
             "--enable-cors-header", "*",
             "--disable-auto-launch",
+            # --use-split-cross-attention — стандартный флаг ComfyUI
+            # для экономии VRAM на T4. Не «ускорение», а совместимость.
+            # Без него дефолтный attention жрёт больше памяти, и Kaggle
+            # OOM-killer убивает процесс (SIGKILL -9).
+            "--use-split-cross-attention",
         ]
 
         cmd_str = " ".join(comfy_args)
@@ -551,48 +547,6 @@ class ComfyLauncher:
             subprocess.run(["pkill", "-9", "-f", pat], capture_output=True)
 
     # ------------------------------------------------------------------
-    # Кнопка «Остановить»
-    # ------------------------------------------------------------------
-    def _on_stop(self):
-        if self.stopped:
-            return
-        self.stopped = True
-        self.logger.set_status("⏳ Останавливаю ComfyUI...", "#f39c12")
-        self.logger.stop_btn.disabled = True
-        self._kill_processes()
-        self.logger.hide_url()
-        self.logger.set_status("🛑 ComfyUI остановлен. Запусти ячейку заново.",
-                               "#e74c3c")
-        self.logger.print("[*] ComfyUI и туннель остановлены.")
-        # Полная остановка лога: сброс буфера + закрытие файла
-        self.logger.stop()
-
-    # ------------------------------------------------------------------
-    # Кнопка «Перезапустить»
-    # ------------------------------------------------------------------
-    def _on_restart(self):
-        if self._starting:
-            return
-        self.logger.restart_btn.disabled = True
-        self.logger.set_status("🔄 Перезапуск ComfyUI...", "#f39c12")
-        self.logger.print("[*] Перезапуск: гашу старые процессы...")
-        self._kill_processes()
-
-        # Сброс состояния под новый запуск
-        self.stopped = False
-        self.public_url = None
-        self.comfy_proc = None
-        self.tunnel_proc = None
-        self.logger.hide_url()
-        self.logger.url_box.value = "<i style='color:#888'>Публичная ссылка появится здесь...</i>"
-
-        # Запускаем заново (в фоне).
-        # _starting выставляем ДО запуска потока, чтобы другой вызов
-        # _on_restart не прошёл guard (self._starting) в race-окне.
-        self._starting = True
-        Thread(target=self._startup, daemon=True).start()
-
-    # ------------------------------------------------------------------
     # keep-alive: держит ячейку активной
     # ------------------------------------------------------------------
     def _keep_alive(self):
@@ -602,8 +556,8 @@ class ComfyLauncher:
         Без nest_asyncio, без kernel.do_one_iteration — эти вызовы
         ломают цикл событий Jupyter и ячейка преждевременно завершается.
 
-        Логи пишутся напрямую в sys.stdout из LogManager.print().
-        Остановка через ⏹ (Interrupt) в тулбаре Kaggle.
+        Остановка через ⏹ (Interrupt) в тулбаре Kaggle:
+        KeyboardInterrupt → _kill_processes() → выход.
         """
         print("[*] keep-alive активен — Kaggle не уснёт. "
               "Останови ⏹ (Interrupt) в тулбаре Kaggle.", flush=True)
@@ -616,5 +570,9 @@ class ComfyLauncher:
                     pass
         except KeyboardInterrupt:
             print("[*] Interrupt — останавливаю ComfyUI и туннель...", flush=True)
-            self._on_stop()
-        self.logger.flush_now()
+            self._kill_processes()
+            self.logger.hide_url()
+            self.logger.set_status("🛑 ComfyUI остановлен. Запусти ячейку заново.",
+                                   "#e74c3c")
+            self.logger.print("[*] ComfyUI и туннель остановлены.")
+        self.logger.stop()
