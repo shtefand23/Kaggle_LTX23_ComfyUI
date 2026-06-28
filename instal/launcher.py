@@ -39,8 +39,7 @@ from kaggle_env import (
 # UI + логи
 from logging_ui import LogManager
 
-# SageAttention
-import sage_installer
+
 
 # Путь к скриптам установщиков
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -67,8 +66,6 @@ class ComfyLauncher:
         self.public_url = None
         self.stopped = False
         self._starting = False
-        self.sage_ok = False
-
         # UI + логи
         self.logger = LogManager()
         self.logger.on_stop_callback = self._on_stop
@@ -126,7 +123,6 @@ class ComfyLauncher:
             self._check_git_updates()
             self._check_files()
             self._ensure_cloudflared()
-            self._install_sage_attention()
             self._start_comfy()
             self._wait_for_port()
             self._start_tunnel()
@@ -151,7 +147,7 @@ class ComfyLauncher:
     # 1. Убиваем старые процессы и чистим блокировки
     # ------------------------------------------------------------------
     def _cleanup_old(self):
-        t0 = self._log_step("Шаг 1/7: Очистка старых процессов и блокировок")
+        t0 = self._log_step("Шаг 1/6: Очистка старых процессов и блокировок")
         total_killed = 0
         for pat in ("main.py", "comfyui", "cloudflared"):
             try:
@@ -189,7 +185,7 @@ class ComfyLauncher:
     # 1b. Проверка обновлений из git-репозитория
     # ------------------------------------------------------------------
     def _check_git_updates(self):
-        t0 = self._log_step("Шаг 2/7: Проверка обновлений скриптов (git)")
+        t0 = self._log_step("Шаг 2/6: Проверка обновлений скриптов (git)")
 
         try:
             result = subprocess.run(
@@ -261,7 +257,7 @@ class ComfyLauncher:
     # 2. Проверка файлов и окружения
     # ------------------------------------------------------------------
     def _check_files(self):
-        t0 = self._log_step("Шаг 3/7: Проверка файлов и окружения")
+        t0 = self._log_step("Шаг 3/6: Проверка файлов и окружения")
 
         # --- venv ---
         self.logger.print("  ── Проверка Python-окружения ──")
@@ -390,7 +386,7 @@ class ComfyLauncher:
     # 3. cloudflared
     # ------------------------------------------------------------------
     def _ensure_cloudflared(self):
-        t0 = self._log_step("Шаг 4/7: Cloudflared (туннель)")
+        t0 = self._log_step("Шаг 4/6: Cloudflared (туннель)")
 
         url = ("https://github.com/cloudflare/cloudflared/releases/latest/"
                "download/cloudflared-linux-amd64")
@@ -417,32 +413,11 @@ class ComfyLauncher:
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 3b. SageAttention-SM75 (Turing)
-    # ------------------------------------------------------------------
-    def _install_sage_attention(self):
-        t0 = self._log_step("Шаг 5/7: SageAttention-SM75 (Turing)")
-        self.sage_ok = sage_installer.install(
-            home_dir=HOME_DIR,
-            venv_python=VENV_PYTHON,
-            comfy_dir=COMFY_DIR,
-            logger=self.logger,
-        )
-        if self.sage_ok:
-            sage_installer.inject_into_workflows(COMFY_DIR, self.logger)
-            self.logger.set_status("SageAttention-SM75 ready", "#27ae60")
-        else:
-            self.logger.print("  → SageAttention не установлен (использую split-cross-attention)")
-        self._log_elapsed(t0)
-
-    # ------------------------------------------------------------------
-    # 4. Запуск ComfyUI
+    # 4. Запуск ComfyUI (чистый, без флагов ускорения)
     # ------------------------------------------------------------------
     def _start_comfy(self):
-        self._log_step("Шаг 6/7: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
-        if self.sage_ok:
-            self.logger.print("  → Attention: SageAttention-T4 (custom node)")
-        else:
-            self.logger.print("  → Attention: --use-split-cross-attention (SageAttention не установлен)")
+        self._log_step("Шаг 5/6: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
+        self.logger.print("  → Режим: чистый запуск, флаги ускорения отключены")
 
         comfy_args = [
             VENV_PYTHON, "main.py",
@@ -450,10 +425,7 @@ class ComfyLauncher:
             "--port", str(PORT),
             "--enable-cors-header", "*",
             "--disable-auto-launch",
-            "--preview-method", "auto",
         ]
-        if not self.sage_ok:
-            comfy_args.append("--use-split-cross-attention")
 
         cmd_str = " ".join(comfy_args)
         self.logger.print(f"  → Команда: {cmd_str}")
@@ -522,7 +494,7 @@ class ComfyLauncher:
             pass
 
     def _start_tunnel(self):
-        self._log_step("Шаг 7/7: Cloudflare Tunnel", status="🔄 Поднимаю туннель...")
+        self._log_step("Шаг 6/6: Cloudflare Tunnel", status="🔄 Поднимаю туннель...")
 
         cmd = [
             CLOUDFLARED, "tunnel", "--no-autoupdate",
