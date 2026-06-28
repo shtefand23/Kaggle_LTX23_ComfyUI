@@ -95,11 +95,11 @@ class ComfyLauncher:
     # ------------------------------------------------------------------
     def launch(self):
         # Панель рисуется в __init__ LogManager через display()
-        # Все потоки daemon — живут, пока жив kernel.
-        # Ячейка НЕ блокируется, kernel обрабатывает on_click кнопок.
         Thread(target=self.logger._heartbeat_loop, daemon=True).start()
         Thread(target=self.logger._stdout_keep_alive, daemon=True).start()
         Thread(target=self._startup, daemon=True).start()
+
+        self._keep_alive()
 
     # ------------------------------------------------------------------
     # Запуск (в фоновом потоке)
@@ -584,3 +584,43 @@ class ComfyLauncher:
         self.logger.hide_url()
         self.logger.enable_stop_btn()
         Thread(target=self._startup, daemon=True).start()
+
+    # ------------------------------------------------------------------
+    # keep-alive: ячейка активна + pump для кнопок
+    # ------------------------------------------------------------------
+    def _keep_alive(self):
+        """Держит ячейку активной (Kaggle не усыпит) + редкий pump для кнопок.
+
+        Без блокировки основного потока Kaggle убивает сессию.
+        Раньше pump не работал — делали его слишком часто.
+        Сейчас pump раз в 1с — kernel успевает обработать on_click.
+        """
+        print("[*] keep-alive активен — Kaggle не уснёт. "
+              "Кнопки в панели — Остановить / Перезапустить.", flush=True)
+        _last_pump = 0.0
+        try:
+            while not self.stopped:
+                time.sleep(0.1)
+                try:
+                    sys.stdout.flush()
+                except Exception:
+                    pass
+                # Раз в секунду — даём kernel обработать on_click от кнопок
+                now = time.time()
+                if now - _last_pump >= 1.0:
+                    _last_pump = now
+                    try:
+                        from IPython import get_ipython
+                        ip = get_ipython()
+                        if ip and hasattr(ip, 'kernel') and ip.kernel:
+                            ip.kernel.do_one_iteration()
+                    except Exception:
+                        pass
+        except KeyboardInterrupt:
+            print("[*] Interrupt — останавливаю ComfyUI и туннель...", flush=True)
+            self._kill_processes()
+            self.logger.hide_url()
+            self.logger.set_status("🛑 ComfyUI остановлен. Запусти ячейку заново.",
+                                   "#e74c3c")
+            self.logger.print("[*] ComfyUI и туннель остановлены.")
+        self.logger.stop()
