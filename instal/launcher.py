@@ -405,11 +405,15 @@ class ComfyLauncher:
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 4. Запуск ComfyUI (чистый, без флагов ускорения)
+    # 4. Запуск ComfyUI
     # ------------------------------------------------------------------
     def _start_comfy(self):
         self._log_step("Шаг 5/6: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
-        self.logger.print("  → Режим: чистый запуск, без флагов")
+        self.logger.print("  → Режим: split-cross-attention (экономия VRAM на T4)")
+
+        # Отключаем comfy-aimdo — на Kaggle его асинхронное чтение файлов
+        # сыпет hostbuf_file_reader_read failed → CUDA illegal memory access.
+        os.environ["COMFY_AIMDO_ENABLED"] = "0"
 
         comfy_args = [
             VENV_PYTHON, "main.py",
@@ -417,6 +421,10 @@ class ComfyLauncher:
             "--port", str(PORT),
             "--enable-cors-header", "*",
             "--disable-auto-launch",
+            # --use-split-cross-attention — не ускорение, а совместимость.
+            # На T4 без него дефолтный attention жрёт больше памяти,
+            # и Kaggle OOM-killer шлёт SIGKILL -9.
+            "--use-split-cross-attention",
         ]
 
         cmd_str = " ".join(comfy_args)
