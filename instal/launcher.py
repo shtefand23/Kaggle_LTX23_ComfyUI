@@ -409,7 +409,7 @@ class ComfyLauncher:
     # ------------------------------------------------------------------
     def _start_comfy(self):
         self._log_step("Шаг 5/6: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
-        self.logger.print("  → Режим: чистый запуск, без флагов")
+        self.logger.print("  → Режим: чистый запуск, AIMDO отключён (стабильность на Kaggle)")
 
         comfy_args = [
             VENV_PYTHON, "main.py",
@@ -422,6 +422,10 @@ class ComfyLauncher:
         cmd_str = " ".join(comfy_args)
         self.logger.print(f"  → Команда: {cmd_str}")
 
+        # Отключаем comfy-aimdo — на Kaggle его асинхронное чтение файлов
+        # сыпет hostbuf_file_reader_read failed → CUDA illegal memory access.
+        comfy_env = dict(os.environ, COMFY_AIMDO_ENABLED="0")
+
         self.comfy_proc = subprocess.Popen(
             comfy_args,
             cwd=COMFY_DIR,
@@ -429,6 +433,7 @@ class ComfyLauncher:
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            env=comfy_env,
         )
         self.logger.print(f"  → PID: {self.comfy_proc.pid}")
         Thread(target=self.logger.stream_process,
