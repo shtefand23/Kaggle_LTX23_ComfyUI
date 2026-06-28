@@ -93,12 +93,14 @@ comfy_args = [
     "--enable-cors-header", "*",
     "--disable-auto-launch",
     "--preview-method", "auto",
-    "--use-split-cross-attention",
+    # Без attention-флага — ComfyUI использует torch SDPA (default на torch 2+)
 ]
 ```
 
-- `--preview-method auto` — авто-превью в ComfyUI (был в рабочем start.py, выпал при рефакторинге)
-- `--use-split-cross-attention` — **обязателен на T4.** Без него OOM-killer → SIGKILL -9. Это не ускорение, а совместимость.
+- `--preview-method auto` — авто-превью в ComfyUI
+- Attention: **SDPA (torch default)** — эффективнее split-cross-attention на втором проходе.
+- `--use-split-cross-attention` — убран: вызывал OOM на втором проходе 720p видео.
+- Если OOM-killer (SIGKILL -9) при загрузке модели — вернуть `--use-split-cross-attention`.
 
 ### 5. Другие флаги — НЕ ДОБАВЛЯТЬ
 - `--fp16 / --bf16` — не нужны, ComfyUI сам выбирает точность
@@ -142,7 +144,7 @@ proc = subprocess.Popen([...], env=dict(os.environ, COMFY_AIMDO_ENABLED="0"))
 | pump выброшен при рефакторинге start.py → launcher.py | кнопки on_click не работали | вернуть _make_kernel_pump с nest_asyncio |
 | do_one_iteration() без nest_asyncio | RuntimeWarning: async | pump через nest_asyncio.apply() + loop.run_until_complete() |
 | env={...} в Popen для AIMDO | процесс падает с code 1 | os.environ["COMFY_AIMDO_ENABLED"] = "0" |
-| убран --use-split-cross-attention | OOM-killer SIGKILL -9 | вернуть флаг |
+| --use-split-cross-attention | OOM на втором проходе 720p видео | убрать → SDPA (torch default) |
 | --gpu-only | CUDA illegal memory access | убрать флаг |
 
 ---
@@ -157,6 +159,6 @@ proc = subprocess.Popen([...], env=dict(os.environ, COMFY_AIMDO_ENABLED="0"))
 3. **Логи — только в виджет:** нет sys.stdout.write / print в `LogManager.print()`
 4. **Pump работает:** `_make_kernel_pump()` есть, `nest_asyncio` устанавливается при необходимости
 5. **AIMDO отключён:** `os.environ["COMFY_AIMDO_ENABLED"] = "0"` на месте
-6. **Флаги ComfyUI:** `--split-cross-attention` + `--preview-method auto` в `_start_comfy()`
+6. **Флаги ComfyUI:** `--preview-method auto` в `_start_comfy()` (без attention-флага — SDPA)
 7. **keep-alive:** `self._keep_alive()` — последний вызов в `launch()`
 8. **Никаких новых флагов ускорения** без обоснования в этом файле
