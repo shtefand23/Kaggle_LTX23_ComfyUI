@@ -120,7 +120,9 @@ class ComfyLauncher:
             self._check_git_updates()
             self._check_files()
             self._ensure_cloudflared()
-            self._install_sage_attention()
+            # SageAttention-SM75 пропускаем — он НЕ работает с GGUF моделями
+            # (llama.cpp бэкенд, не диффузионный attention).
+            # Скорость генерации — через настройки ComfyUI/GGUF ноды.
             self._start_comfy()
             self._wait_for_port()
             self._start_tunnel()
@@ -415,8 +417,8 @@ class ComfyLauncher:
     def _install_sage_attention(self):
         """Устанавливает SageAttention-SM75-path в venv + custom node.
 
-        Если установлен — ComfyUI использует его вместо SDPA/split-cross-attention.
-        Если не установился — fallback на SDPA (без --use-split-cross-attention).
+        ВНИМАНИЕ: НЕ РАБОТАЕТ С GGUF-МОДЕЛЯМИ (llama.cpp бэкенд).
+        Оставлен для справки — вызывать только для диффузионных моделей (SD/SDXL/Flux).
         """
         try:
             self.sage_ok = sage_installer.install(

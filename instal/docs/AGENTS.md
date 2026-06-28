@@ -102,6 +102,12 @@ comfy_args = [
 - `--use-split-cross-attention` — убран: вызывал `torch.OutOfMemoryError` на втором проходе 720p.
 - Если OOM-killer (SIGKILL -9) при загрузке модели — вернуть `--use-split-cross-attention`.
 
+### 4b. SageAttention-SM75 — НЕ ИСПОЛЬЗОВАТЬ
+- **SageAttention НЕ РАБОТАЕТ с GGUF-моделями** (llama.cpp бэкенд, не диффузионный attention).
+- GGUF-модели (LTX, Flux GGUF и т.д.) используют свой бэкенд attention — SageAttention не подменяет его.
+- SageAttention имеет смысл только для диффузионных моделей (SD, SDXL, Flux fp16).
+- Метод `_install_sage_attention()` в launcher.py оставлен для справки, но **не вызывается** в `_startup()`.
+
 ### 5. Другие флаги — НЕ ДОБАВЛЯТЬ
 - `--fp16 / --bf16` — не нужны, ComfyUI сам выбирает точность
 - `--xformers` — нестабильно на T4 с некоторыми нодами
@@ -142,6 +148,8 @@ proc = subprocess.Popen([...], env=dict(os.environ, COMFY_AIMDO_ENABLED="0"))
 | sys.stdout.write() в LogManager.print() | дубли строк под виджетом | убрать sys.stdout.write() |
 | удалён _keep_alive() | Kaggle убивает сессию | вернуть sleep+flush |
 | pump выброшен при рефакторинге start.py → launcher.py | кнопки on_click не работали | вернуть _make_kernel_pump с nest_asyncio |
+| do_one_iteration() без nest_asyncio | RuntimeWarning: async | pump через nest_asyncio.apply() + loop.run_until_complete() |
+| SageAttention-SM75 подключён в _startup() | не работает с GGUF (llama.cpp) | отключён вызов из _startup() |
 | do_one_iteration() без nest_asyncio | RuntimeWarning: async | pump через nest_asyncio.apply() + loop.run_until_complete() |
 | env={...} в Popen для AIMDO | процесс падает с code 1 | os.environ["COMFY_AIMDO_ENABLED"] = "0" |
 | --use-split-cross-attention | OOM на втором проходе 720p видео | убрать → SDPA (torch default) |
