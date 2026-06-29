@@ -157,23 +157,32 @@ class LogManager:
         display(self.panel)
 
         # Скрипт auto-scroll лога: при появлении новых строк скроллит вниз,
-        # если пользователь не прокрутил вверх. MutationObserver следит за
-        # #__comfy_log__ и при изменении контента проверяет позицию скролла.
+        # если пользователь не прокрутил вверх.
+        #
+        # ВАЖНО: Observer вешается на корневой DOM-элемент виджета (.widget-html),
+        # а НЕ на #__comfy_log__ — потому что при каждом обновлении .value
+        # innerHTML виджета полностью заменяется, и #__comfy_log__
+        # удаляется/создаётся заново. А .widget-html остаётся.
         try:
             from IPython.display import Javascript
             display(Javascript("""
             (function(){
-                var el = document.getElementById('__comfy_log__');
-                if (!el) { setTimeout(arguments.callee, 200); return; }
+                var findTarget = function() {
+                    var el = document.querySelector('#__comfy_log__');
+                    if (!el) return null;
+                    return el.closest('.widget-html') || el.parentElement;
+                };
+                var target = findTarget();
+                if (!target) { setTimeout(arguments.callee, 200); return; }
                 var observer = new MutationObserver(function(){
-                    var pre = el.querySelector('pre');
+                    var pre = document.querySelector('#__comfy_log__ pre');
                     if (!pre) return;
                     setTimeout(function(){
                         var atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 40;
                         if (atBottom) pre.scrollTop = pre.scrollHeight;
                     }, 0);
                 });
-                observer.observe(el, {childList:true, subtree:true, characterData:true});
+                observer.observe(target, {childList:true, subtree:true, characterData:true});
             })();
             """))
         except Exception:
