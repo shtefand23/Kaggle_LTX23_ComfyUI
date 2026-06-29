@@ -539,12 +539,14 @@ class ComfyLauncher:
             "--enable-cors-header", "*",
             "--disable-auto-launch",
             "--preview-method", "auto",
-            "--gpu-only",
             # Без флага attention — ComfyUI использует torch SDPA (на torch 2+).
             # Раньше был --use-split-cross-attention, но на втором проходе
             # 720p видео вылетает OOM. SDPA эффективнее по памяти на T4.
             # Если будет OOM-killer (SIGKILL -9) при загрузке модели —
             # вернуть --use-split-cross-attention.
+            #
+            # --gpu-only: был добавлен для теста, но вызывает CUDA OOM
+            # (вытеснение из VRAM). Убран.
         ]
 
         cmd_str = " ".join(comfy_args)
