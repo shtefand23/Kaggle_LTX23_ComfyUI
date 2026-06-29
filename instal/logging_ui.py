@@ -6,20 +6,13 @@ logging_ui.py
 UI-обвязка и система логирования для ComfyUI на Kaggle.
 
 Архитектура (выстрадана на Kaggle):
-  * Лог — widgets.HTML (НЕ Output!). .value = html работает из любого
-    потока через iopub, не требует event-loop pump.
-  * Статус, heartbeat, URL — тоже widgets.HTML (те же преимущества).
-  * Кнопки — widgets.Button с on_click. Работают, потому что ячейка
-    НЕ блокируется (завершается сразу после display()), и kernel
-    обрабатывает сообщения от frontend.
+  * Раньше лог был widgets.HTML с буфером и флешером — скролл
+    улетал наверх при каждом обновлении, JS-фиксы не работали.
+  * Сейчас — widgets.Output. append_stdout() идёт через iopub,
+    frontend сам добавляет строку и сохраняет скролл.
+  * Статус, heartbeat, URL — widgets.HTML (те же преимущества).
+  * Кнопки — widgets.Button с on_click.
   * Keep-alive: фоновые потоки (_heartbeat_loop, _stdout_keep_alive).
-  * Два anti-sleep маяка: heartbeat (через widgets.HTML) + stdout print.
-
-Фикс бага лога (история):
-  * Изначально был widgets.HTML — работало.
-  * Потом переделали на widgets.Output с clear_output() — сломалось,
-    т.к. Output требует pump.
-  * Сейчас снова widgets.HTML — работает без pump.
 =================================================================
 """
 
@@ -29,7 +22,6 @@ import re
 import subprocess
 import sys
 import time
-from collections import deque
 from datetime import datetime
 from threading import Lock, Thread
 
@@ -40,27 +32,20 @@ from IPython.display import display
 # ----------------------------------------------------------------------
 # Настройки лога
 # ----------------------------------------------------------------------
-LOG_MAX_LINES = 2000     # сколько последних строк держим в буфере
-LOG_FLUSH_SEC = 0.5      # как часто перерисовываем виджет лога
-
 LOG_FILE_PATH = "/kaggle/working/comfyui_launcher.log"
 
 
 class LogManager:
     """Собирает логи из всех потоков и рисует панель управления.
 
-    Потокобезопасен: print() можно звать откуда угодно.
-    Лог — widgets.HTML, .value = html работает из любого потока.
+    Лог — widgets.Output. append_stdout() отправляет текст через iopub
+    на frontend, который сам добавляет строку и сохраняет скролл внизу
+    (механизм Output). Не требует pump, потокобезопасен.
     """
 
     _ANSI_RE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
     def __init__(self):
-        # Буфер лога + троттлинг
-        self._log_lines = deque(maxlen=LOG_MAX_LINES)
-        self._log_lock = Lock()
-        self._log_dirty = False
-
         self.stopped = False
 
         # Callback'и для кнопок (устанавливаются из launcher.py)
@@ -72,9 +57,6 @@ class LogManager:
 
         # Строим панель
         self._build_ui()
-
-        # Флешер лога — перерисовывает widgets.HTML.value из буфера
-        Thread(target=self._log_flusher, daemon=True).start()
 
     # ------------------------------------------------------------------
     # Persistent-лог в файл
@@ -99,7 +81,7 @@ class LogManager:
             self._log_file = None
 
     # ------------------------------------------------------------------
-    # Сборка UI — widgets.HTML для лога + widgets.Button для кнопок
+    # Сборка UI
     # ------------------------------------------------------------------
     def _build_ui(self):
         # Статус
@@ -109,7 +91,7 @@ class LogManager:
         self._hb_started = time.time()
         self.heartbeat = widgets.HTML(self._heartbeat_html(0))
 
-        # URL-ссылка (появится, когда туннель даст URL)
+        # URL-ссылка
         self.url_box = widgets.HTML(
             "<div style='font-style:italic; color:#555'>"
             "Публичная ссылка появится здесь...</div>"
@@ -131,16 +113,16 @@ class LogManager:
         )
         self.restart_btn.on_click(self._on_restart_click)
 
-        # Ряд кнопок: ссылка + остановить + перезапустить
+        # Ряд кнопок
         self.controls = widgets.HBox([self.url_box, self.stop_btn, self.restart_btn])
 
-        # Лог — widgets.HTML (НЕ Output!). .value = html обновляется
-        # из флешера — работает через iopub, не требует pump.
-        self.log = widgets.HTML(
-            value=self._log_html([]),
+        # Лог — widgets.Output. append_stdout() отправляет на frontend
+        # через iopub. Frontend сам добавляет строки и сохраняет скролл
+        # внизу — не требует pump и не сбрасывает позицию.
+        self.log_output = widgets.Output(
             layout=widgets.Layout(
                 border="1px solid #444", height="360px",
-                overflow="auto", padding="0",
+                overflow="auto",
             ),
         )
 
@@ -150,46 +132,14 @@ class LogManager:
             self.heartbeat,
             self.controls,
             widgets.HTML("<b>Лог:</b>"),
-            self.log,
+            self.log_output,
         ])
 
         # Показываем панель
         display(self.panel)
 
-        # Скрипт auto-scroll лога: при появлении новых строк скроллит вниз,
-        # если пользователь не прокрутил вверх.
-        #
-        # ВАЖНО: Observer вешается на корневой DOM-элемент виджета (.widget-html),
-        # а НЕ на #__comfy_log__ — потому что при каждом обновлении .value
-        # innerHTML виджета полностью заменяется, и #__comfy_log__
-        # удаляется/создаётся заново. А .widget-html остаётся.
-        try:
-            from IPython.display import Javascript
-            display(Javascript("""
-            (function(){
-                var findTarget = function() {
-                    var el = document.querySelector('#__comfy_log__');
-                    if (!el) return null;
-                    return el.closest('.widget-html') || el.parentElement;
-                };
-                var target = findTarget();
-                if (!target) { setTimeout(arguments.callee, 200); return; }
-                var observer = new MutationObserver(function(){
-                    var pre = document.querySelector('#__comfy_log__ pre');
-                    if (!pre) return;
-                    setTimeout(function(){
-                        var atBottom = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 40;
-                        if (atBottom) pre.scrollTop = pre.scrollHeight;
-                    }, 0);
-                });
-                observer.observe(target, {childList:true, subtree:true, characterData:true});
-            })();
-            """))
-        except Exception:
-            pass
-
     # ------------------------------------------------------------------
-    # HTML-генераторы
+    # HTML-генераторы (для статуса, heartbeat)
     # ------------------------------------------------------------------
     @staticmethod
     def _status_html(text, color):
@@ -209,33 +159,13 @@ class LogManager:
             "Kaggle не уснёт</div>"
         )
 
-    @staticmethod
-    def _log_html(lines):
-        """Собирает HTML для виджета лога.
-
-        Оборачивает pre в div#__comfy_log__ — MutationObserver в _build_ui()
-        находит его и управляет auto-scroll при добавлении новых строк.
-        """
-        body = html.escape("\n".join(lines))
-        return (
-            "<div id='__comfy_log__' style='height:100%;'>"
-            "<pre style='margin:0; padding:6px; white-space:pre-wrap; "
-            "word-break:break-word; background:#0f1117; color:#ddd; "
-            "font-family:monospace; font-size:12px; line-height:1.35; "
-            "height:100%; overflow-y:auto; "
-            "max-height:348px; box-sizing:border-box;'>" + body + "</pre>"
-            "</div>"
-        )
-
     # ------------------------------------------------------------------
     # Публичные методы обновления
     # ------------------------------------------------------------------
     def set_status(self, text, color):
-        """Обновляет строку статуса."""
         self.status.value = self._status_html(text, color)
 
     def show_url(self, url):
-        """Показывает URL туннеля."""
         self.url_box.value = (
             f"<a href='{url}' target='_blank' rel='noopener noreferrer' "
             f"style='background:#3498db; color:#fff; padding:10px 22px; "
@@ -252,7 +182,7 @@ class LogManager:
         )
 
     # ------------------------------------------------------------------
-    # Обработчики кнопок — вызывают callback'и из launcher.py
+    # Обработчики кнопок
     # ------------------------------------------------------------------
     def _on_stop_click(self, _btn):
         if self.on_stop_callback:
@@ -263,7 +193,7 @@ class LogManager:
             self.on_restart_callback()
 
     # ------------------------------------------------------------------
-    # Состояние кнопок (disabled/enabled)
+    # Состояние кнопок
     # ------------------------------------------------------------------
     def disable_stop_btn(self):
         self.stop_btn.disabled = True
@@ -278,7 +208,7 @@ class LogManager:
         self.restart_btn.disabled = False
 
     # ------------------------------------------------------------------
-    # Heartbeat (anti-sleep через widgets.HTML)
+    # Heartbeat (widgets.HTML — не требует pump)
     # ------------------------------------------------------------------
     def _heartbeat_loop(self):
         while not self.stopped:
@@ -307,17 +237,17 @@ class LogManager:
             print(f"💓 [{now}] ComfyUI активен, ожидание запроса...", flush=True)
 
     # ------------------------------------------------------------------
-    # Лог: дешёвая запись в буфер + троттлинг-перерисовка
+    # Лог: append_stdout напрямую на frontend
     # ------------------------------------------------------------------
     @staticmethod
     def _strip_ansi(text):
         return LogManager._ANSI_RE.sub('', text)
 
     def print(self, text):
-        """Кладёт строки в буфер. Флешер перерисовывает виджет.
+        """Отправляет строки в Output-виджет (+ persistent-файл).
 
-        Лог выводится ТОЛЬКО в виджет (widgets.HTML) и в persistent-файл.
-        Без sys.stdout — иначе строки дублируются под виджетом.
+        append_stdout идёт через iopub — frontend добавляет строку
+        и сохраняет скролл автоматически. Потокобезопасно.
         """
         for raw in str(text).split("\n"):
             seg = raw.split("\r")[-1].rstrip()
@@ -326,37 +256,14 @@ class LogManager:
             seg = self._strip_ansi(seg)
             if not seg:
                 continue
-            with self._log_lock:
-                self._log_lines.append(seg)
-                self._log_dirty = True
-                if self._log_file:
-                    try:
-                        self._log_file.write(f"{seg}\n")
-                    except OSError:
-                        pass
-
-    def _flush_log_now(self):
-        """Сбрасывает буфер в widgets.HTML — просто .value = html."""
-        with self._log_lock:
-            if not self._log_dirty:
-                return
-            self._log_dirty = False
-            lines = list(self._log_lines)
-        try:
-            self.log.value = self._log_html(lines)
+            # В Output-виджет (iopub → frontend, скролл сохраняется)
+            self.log_output.append_stdout(seg + "\n")
+            # В persistent-файл
             if self._log_file:
-                self._log_file.flush()
-        except Exception:
-            pass
-
-    def _log_flusher(self):
-        """Раз в LOG_FLUSH_SEC перерисовывает виджет лога."""
-        while not self.stopped:
-            time.sleep(LOG_FLUSH_SEC)
-            try:
-                self._flush_log_now()
-            except Exception:
-                pass
+                try:
+                    self._log_file.write(f"{seg}\n")
+                except OSError:
+                    pass
 
     # ------------------------------------------------------------------
     # Захват stdout процесса -> лог
@@ -418,10 +325,11 @@ class LogManager:
     # Завершение
     # ------------------------------------------------------------------
     def flush_now(self):
-        try:
-            self._flush_log_now()
-        except Exception:
-            pass
+        if self._log_file:
+            try:
+                self._log_file.flush()
+            except OSError:
+                pass
 
     def stop(self):
         self.stopped = True
