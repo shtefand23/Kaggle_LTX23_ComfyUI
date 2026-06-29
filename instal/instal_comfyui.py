@@ -100,7 +100,11 @@ def install_torch():
 
     # nvidia-ml-py — подавляет FutureWarning от torch 2.11:
     #   "The pynvml package is deprecated. Please install nvidia-ml-py instead."
+    # Torch сначала пробует import nvidia_ml_py, если не находит — pynvml с warning.
+    # Удаляем pynvml, чтобы torch гарантированно взял новую библиотеку.
     uv_pip_install("nvidia-ml-py")
+    run(["uv", "pip", "uninstall", "--python", VENV_PYTHON, "-q", "pynvml"],
+        check=False)
 
     # Проверяем, что torch видит CUDA — сразу ловим проблему, не на запуске.
     run([VENV_PYTHON, "-c",
