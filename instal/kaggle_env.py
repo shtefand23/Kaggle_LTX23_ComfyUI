@@ -107,13 +107,6 @@ def setup_env():
     if os.path.isdir(UV_LOCAL_DIR) and UV_LOCAL_DIR not in os.environ.get("PATH", "").split(os.pathsep):
         os.environ["PATH"] = UV_LOCAL_DIR + os.pathsep + os.environ.get("PATH", "")
 
-    # PYTHONWARNINGS — подавляем FutureWarning от torch 2.11 про pynvml.
-    # Warning приходит из subprocess (torch_cuda_ok, install_torch), поэтому
-    # ставим как env-переменную — наследуется всеми дочерними процессами.
-    # "ignore::FutureWarning" — глушит только FutureWarning, остальные warnings
-    # (DeprecationWarning, UserWarning) остаются видны.
-    os.environ.setdefault("PYTHONWARNINGS", "ignore::FutureWarning")
-
 
 # ----------------------------------------------------------------------
 # Установка uv. Идемпотентна: ставит, только если его нет, и чинит +x.

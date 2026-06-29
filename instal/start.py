@@ -26,15 +26,6 @@ import os
 import shutil
 import subprocess
 import sys
-import warnings
-
-# ----------------------------------------------------------------------
-# 0a. Подавляем FutureWarning от torch 2.11 про pynvml.
-#     В main-процессе torch не импортится (только subprocess), но
-#     страховка на случай если какой-нибудь import триггернёт torch.
-# ----------------------------------------------------------------------
-warnings.filterwarnings("ignore", category=FutureWarning,
-                        module="torch")
 
 # ----------------------------------------------------------------------
 # 0. Определяем корень instal/
