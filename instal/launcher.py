@@ -303,6 +303,8 @@ class ComfyLauncher:
 
         # --- Кастомные ноды ---
         self._check_nodes()
+        # --- Симлинки на модели (всегда, независимо от состояния нод) ---
+        self._ensure_symlinks()
         self._log_elapsed(t0)
 
     # --- 2b. проверка и авто-обновление кастомных нод ---
@@ -384,6 +386,49 @@ class ComfyLauncher:
             self._update_existing_nodes(names)
         else:
             self.logger.print("[*] Кастомные ноды на месте (авто-обновление выключено)")
+
+    def _ensure_symlinks(self):
+        """Создаёт символьные ссылки на модели из SYMLINKS.
+
+        Вызывается всегда, независимо от состояния нод. Ссылки могли
+        не создаться при первой установке, пропасть после рестарта
+        Kaggle, или измениться в датасете.
+        """
+        self.logger.print("  ── Символьные ссылки на модели ──")
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "instal_castom_node", NODE_INSTALLER)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            symlinks = list(getattr(mod, "SYMLINKS", []))
+            if not symlinks:
+                self.logger.print("  → SYMLINKS пуст — нет ссылок для создания")
+                return
+            created = 0
+            for src, dst in symlinks:
+                if not os.path.exists(src):
+                    self.logger.print(
+                        f"  → Источник не найден, пропуск: {os.path.basename(src)}")
+                    continue
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                if os.path.islink(dst) or os.path.exists(dst):
+                    try:
+                        os.remove(dst)
+                    except OSError as e:
+                        self.logger.print(
+                            f"  → Не удалось удалить {os.path.basename(dst)}: {e}")
+                        continue
+                try:
+                    os.symlink(src, dst)
+                    self.logger.print(f"  → Ссылка: {os.path.basename(dst)}")
+                    created += 1
+                except OSError as e:
+                    self.logger.print(
+                        f"  → Ошибка symlink {os.path.basename(dst)}: {e}")
+            self.logger.print(f"  → Симлинки: {created}/{len(symlinks)}")
+        except Exception as e:
+            self.logger.print(f"[!] Не удалось создать симлинки: {e}")
 
     # ------------------------------------------------------------------
     # 3. cloudflared
