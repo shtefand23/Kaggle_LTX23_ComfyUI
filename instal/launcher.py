@@ -301,6 +301,9 @@ class ComfyLauncher:
         else:
             self.logger.print("  ✅ torch/CUDA в порядке")
 
+        # --- nvidia-ml-py (подавление pynvml FutureWarning от torch 2.11) ---
+        self._ensure_nvidia_ml_py()
+
         # --- Кастомные ноды ---
         self._check_nodes()
         # --- Симлинки на модели (всегда, независимо от состояния нод) ---
@@ -429,6 +432,38 @@ class ComfyLauncher:
             self.logger.print(f"  → Симлинки: {created}/{len(symlinks)}")
         except Exception as e:
             self.logger.print(f"[!] Не удалось создать симлинки: {e}")
+
+    # --- 2c. nvidia-ml-py вместо pynvml (подавление FutureWarning от torch 2.11) ---
+    def _ensure_nvidia_ml_py(self):
+        """Устанавливает nvidia-ml-py и удаляет pynvml.
+
+        Torch 2.11+ ругается FutureWarning если вместо nvidia-ml-py
+        установлен устаревший pynvml. Бежит каждый запуск.
+        """
+        self.logger.print("  ── Проверка nvidia-ml-py (pynvml → nvidia-ml-py) ──")
+        try:
+            r = subprocess.run(
+                ["uv", "pip", "install", "--python", VENV_PYTHON,
+                 "-q", "nvidia-ml-py"],
+                capture_output=True, text=True, timeout=30)
+            if r.returncode == 0:
+                self.logger.print("  → nvidia-ml-py установлен")
+            else:
+                self.logger.print(f"  → nvidia-ml-py: {r.stderr.strip()[:100]}")
+        except Exception as e:
+            self.logger.print(f"  → nvidia-ml-py: ошибка ({e})")
+
+        try:
+            r = subprocess.run(
+                ["uv", "pip", "uninstall", "--python", VENV_PYTHON,
+                 "-q", "pynvml"],
+                capture_output=True, text=True, timeout=15)
+            if r.returncode == 0:
+                self.logger.print("  → pynvml удалён")
+            else:
+                self.logger.print("  → pynvml не найден — ок")
+        except Exception as e:
+            self.logger.print(f"  → pynvml: ошибка ({e})")
 
     # ------------------------------------------------------------------
     # 3. cloudflared
