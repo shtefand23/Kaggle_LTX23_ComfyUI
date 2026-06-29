@@ -23,8 +23,9 @@ ComfyLauncher (launcher.py)
 ```
 
 **LogManager (logging_ui.py)**
-- `LogManager.print(text)` — добавляет строку в буфер (thread-safe)
-- `_log_flusher` (daemon thread) — раз в 0.5с перерисовывает `widgets.HTML`
+- `LogManager.print(text)` — добавляет строку в буфер (thread-safe, deque maxlen=2000)
+- `_log_flusher` (daemon thread) — раз в 0.5с: `html.escape()` → `widgets.HTML.value = <pre>...</pre>`
+- Скролл — браузерное CSS scroll anchoring (overflow:auto). Без JS. Без авто-скролла.
 - Кнопки — `widgets.Button` с `on_click`
 - Панель собирается в `_build_ui()` и показывается через `display()`
 
@@ -71,9 +72,16 @@ def _make_kernel_pump(self):
 
 ### 3. Лог — ТОЛЬКО `widgets.HTML`, НЕ `widgets.Output`
 - ✅ `widgets.HTML.value = html` — работает из любого потока через iopub
-- ❌ `widgets.Output + clear_output()` — требует pump (не работает без do_one_iteration)
+- ✅ Scroll anchoring: браузер сам держит скролл. Если пользователь внизу — видит новые строки (scroll stays at bottom). Если читает выше — скролл не дёргается.
+- ❌ `widgets.Output.append_stdout()` — авто-скроллит вниз на КАЖДЫЙ вызов, пользователь не может читать старые логи
 - ❌ `sys.stdout.write()` — дублирует строки под виджетом
 - ❌ `print()` в `LogManager.print()` — дублирует под виджетом
+
+**Почему вернулись с Output на HTML (эволюция):**
+1. HTML + per-line update → скролл прыгал наверх при каждой перерисовке
+2. Output + per-line append_stdout → скролл прыгал вниз на каждую строку (iopub flood)
+3. Output + buffer + 0.5s flusher → скролл прыгал вниз раз в 0.5с (лучше, но всё ещё мешает)
+4. HTML + buffer + 0.5s flusher → **scroll anchoring работает, скролл НЕ прыгает**
 
 **Куда выводить логи:**
 ```python
@@ -152,6 +160,7 @@ proc = subprocess.Popen([...], env=dict(os.environ, COMFY_AIMDO_ENABLED="0"))
 | SageAttention-SM75 подключён в _startup() | не работает с GGUF (llama.cpp) | отключён вызов из _startup() |
 | do_one_iteration() без nest_asyncio | RuntimeWarning: async | pump через nest_asyncio.apply() + loop.run_until_complete() |
 | env={...} в Popen для AIMDO | процесс падает с code 1 | os.environ["COMFY_AIMDO_ENABLED"] = "0" |
+| widgets.Output + append_stdout() | авто-скролл вниз на каждую строку | widgets.HTML + buffer + 0.5s flusher + scroll anchoring |
 | --use-split-cross-attention | OOM на втором проходе 720p видео | убрать → SDPA (torch default) |
 | --gpu-only | CUDA illegal memory access | убрать флаг |
 
