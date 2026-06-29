@@ -24,10 +24,11 @@ start.py
 import importlib
 import os
 import shutil
+import subprocess
 import sys
 
 # ----------------------------------------------------------------------
-# 0. Сброс stale-кэша модулей и .pyc
+# 0. Определяем корень instal/
 # ----------------------------------------------------------------------
 try:
     _KE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,9 +36,32 @@ except NameError:
     _KE_DIR = "/kaggle/working/instal"
 sys.path.insert(0, _KE_DIR)
 
-# После git pull в той же сессии Jupyter старые .py файлы обновлены,
-# но sys.modules хранит закешированные старые модули.
-# Выкидываем все instal-модули — Python перечитает свежие .py.
+# ----------------------------------------------------------------------
+# 1. git pull — обновляем код из репозитория
+#    Выполняется ДО очистки кэша, чтобы свежие файлы уже были на диске.
+# ----------------------------------------------------------------------
+try:
+    _r = subprocess.run(
+        ["git", "-C", _KE_DIR, "pull", "--ff-only"],
+        capture_output=True, text=True, timeout=30,
+        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+    )
+    if _r.returncode == 0:
+        _out = (_r.stdout + _r.stderr).strip()
+        if "Already up to date" not in _out and "Already up-to-date" not in _out:
+            print("⚙️ [start] git pull: код обновлён из репозитория")
+    else:
+        print(f"⚙️ [start] git pull: {_r.stderr.strip()[:120]}")
+except Exception as _exc:
+    print(f"⚙️ [start] git pull не удался: {_exc}")
+
+# ----------------------------------------------------------------------
+# 2. Сброс stale-кэша модулей и .pyc
+#    После git pull на диске свежие файлы. Вычищаем всё, что могло
+#    закэшироваться в памяти (sys.modules) и на диске (__pycache__).
+# ----------------------------------------------------------------------
+
+# 2a. Удаляем instal-модули из памяти — Python перечитает свежие .py.
 for _mod_name in list(sys.modules.keys()):
     if _mod_name in (
         "kaggle_env", "logging_ui", "launcher", "sage_installer",
@@ -45,15 +69,15 @@ for _mod_name in list(sys.modules.keys()):
     ):
         del sys.modules[_mod_name]
 
-# Чистим все __pycache__ в instal/ рекурсивно — stale .pyc переживает
-# git pull, и Python может не перекомпилировать, если timestamp совпал.
+# 2b. Чистим все __pycache__ рекурсивно — stale .pyc переживает git pull,
+#     и Python может не перекомпилировать, если timestamp совпал.
 for _root, _dirs, _files in os.walk(_KE_DIR):
     if "__pycache__" in _dirs:
         shutil.rmtree(os.path.join(_root, "__pycache__"), ignore_errors=True)
-        _dirs.remove("__pycache__")  # не лезем внутрь удалённого
+        _dirs.remove("__pycache__")
 
-# Инвалидируем кэш importlib finder'ов — чтобы они перечитали файлы
-# с диска, а не вернули stale spec из внутреннего кэша.
+# 2c. Инвалидируем кэш importlib finder'ов — чтобы они перечитали файлы
+#     с диска, а не вернули stale spec из внутреннего кэша.
 importlib.invalidate_caches()
 
 import kaggle_env as ke
