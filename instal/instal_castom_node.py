@@ -52,9 +52,8 @@ CUSTOM_NODES = {
     "ComfyUI_FL-CosyVoice3": "https://github.com/filliptm/ComfyUI_FL-CosyVoice3.git",
     # Ltx 2.3 Director
     "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
-    # LTX2 MultiGPU — распределение генерации видео на несколько GPU
-    # Форкнуто с dreamfast/ComfyUI-LTX2-MultiGPU, полностью переработанный
-    # Hybrid Split Loader для LTX 2.3 GGUF на 2×T4 (Kaggle)
+    # LTX2 MultiGPU — авторская нода THE-ANGEL-AI.
+    # Собственная разработка с нуля: Hybrid Split Loader для LTX 2.3 GGUF на 2×T4 (Kaggle).
     "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
 }
 
