@@ -76,37 +76,37 @@ SYMLINKS = [
      f"{COMFY_DIR}/models/loras/Flux_2-Turbo-LoRA_comfyui.safetensors"),
 
     # (Ltx 2.3 video)
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/gemma-3-12b-it-heretic-fp4-comfy.safetensors",
-     f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-heretic-fp4-comfy.safetensors"),
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/gemma-3-12b-it-UD-Q5_K_XL.gguf",
+     f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-UD-Q5_K_XL.gguf"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/ltx-2.3_text_projection_bf16.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3_text_projection_bf16.safetensors",
      f"{COMFY_DIR}/models/text_encoders/ltx-2.3_text_projection_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/LTX23_audio_vae_bf16.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX23_audio_vae_bf16.safetensors",
      f"{COMFY_DIR}/models/vae/LTX23_audio_vae_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/LTX23_video_vae_bf16.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX23_video_vae_bf16.safetensors",
      f"{COMFY_DIR}/models/vae/LTX23_video_vae_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/taeltx2_3.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/taeltx2_3.safetensors",
      f"{COMFY_DIR}/models/vae/taeltx2_3.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
      f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-Q6_K.gguf"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf",
      f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
      f"{COMFY_DIR}/models/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors",
      f"{COMFY_DIR}/models/loras/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors",
      f"{COMFY_DIR}/models/loras/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/4/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
+    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
      f"{COMFY_DIR}/models/loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors")
 ]
 
