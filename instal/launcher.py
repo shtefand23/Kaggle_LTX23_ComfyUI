@@ -330,6 +330,28 @@ class ComfyLauncher:
         идемпотентен и быстр при Already up to date. Это гарантирует, что
         зависимости нод не пропадут после пересоздания venv.
         """
+        # Принудительная смена remote URL, если форк переехал
+        try:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location(
+                "instal_castom_node", NODE_INSTALLER)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            nodes = getattr(mod, "CUSTOM_NODES", {})
+            expected_url = nodes.get(name)
+            if expected_url:
+                cur = subprocess.run(
+                    ["git", "-C", path, "remote", "get-url", "origin"],
+                    capture_output=True, text=True).stdout.strip()
+                if cur != expected_url:
+                    self.logger.print(
+                        f"[NODES] {name}: смена remote URL: {cur} → {expected_url}")
+                    subprocess.run(
+                        ["git", "-C", path, "remote", "set-url", "origin", expected_url],
+                        capture_output=True, text=True)
+        except Exception as e:
+            self.logger.print(f"[NODES] {name}: не удалось проверить remote URL ({e})")
+
         res = subprocess.run(
             ["git", "-C", path, "pull", "--ff-only"],
             capture_output=True, text=True)

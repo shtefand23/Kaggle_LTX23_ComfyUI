@@ -24,6 +24,7 @@ instal_castom_node.py
 """
 
 import os
+import subprocess
 import sys
 
 # Общий модуль рядом с файлом — единый источник правды (пути, uv, venv).
@@ -52,7 +53,9 @@ CUSTOM_NODES = {
     # Ltx 2.3 Director
     "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
     # LTX2 MultiGPU — распределение генерации видео на несколько GPU
-    "ComfyUI-LTX2-MultiGPU": "https://github.com/dreamfast/ComfyUI-LTX2-MultiGPU.git",
+    # Форкнуто с dreamfast/ComfyUI-LTX2-MultiGPU, полностью переработанный
+    # Hybrid Split Loader для LTX 2.3 GGUF на 2×T4 (Kaggle)
+    "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
 }
 
 # ----------------------------------------------------------------------
@@ -139,6 +142,13 @@ def install_node(name, repo):
     if not os.path.exists(target):
         run(["git", "clone", repo, target])
     else:
+        # Если remote URL изменился (форк переехал) — обновляем
+        cur = subprocess.run(
+            ["git", "-C", target, "remote", "get-url", "origin"],
+            capture_output=True, text=True).stdout.strip()
+        if cur != repo:
+            warn(f"Смена remote URL: {cur} → {repo}")
+            run(["git", "-C", target, "remote", "set-url", "origin", repo])
         run(["git", "-C", target, "pull"], check=False)
 
     req = os.path.join(target, "requirements.txt")
