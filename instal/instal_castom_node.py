@@ -57,17 +57,19 @@ CUSTOM_NODES = {
     "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
 }
 
+# Z Image Turbo AIO — from Kaggle dataset (symlink, no download).
 # ----------------------------------------------------------------------
-# HuggingFace model download URL (Z Image Turbo AIO — no text encoder/VAE needed).
-# ----------------------------------------------------------------------
-CIVITAI_URL = "https://huggingface.co/shtefand/stf1/resolve/main/gonzalomoZpop_v40.safetensors"
-CIVITAI_MODEL = "gonzalomoZpop_v40.safetensors"
+ZPOP_MODEL_SRC = "/kaggle/input/datasets/martasteiner/myzitc/gonzalomoZpop_v40.safetensors"
+ZPOP_MODEL_DST = f"{COMFY_DIR}/models/checkpoints/gonzalomoZpop_v40.safetensors"
 
 # ----------------------------------------------------------------------
 # MODEL SYMLINKS  (source in /kaggle/input -> ComfyUI folder).
 # This is your section: change paths for your datasets/models.
 # ----------------------------------------------------------------------
 SYMLINKS = [
+    # Z Image Turbo AIO
+    (ZPOP_MODEL_SRC, ZPOP_MODEL_DST),
+
     # (Ltx 2.3 video)
     ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/gemma-3-12b-it-UD-Q5_K_XL.gguf",
      f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-UD-Q5_K_XL.gguf"),
@@ -164,27 +166,6 @@ def make_symlink(src, dst):
 
 
 # ----------------------------------------------------------------------
-# Download Civitai model (Z Image Turbo AIO)
-# ----------------------------------------------------------------------
-def download_civitai_model():
-    """Downloads the Civitai model to models/checkpoints/ if not present."""
-    dest = os.path.join(COMFY_DIR, "models", "checkpoints", CIVITAI_MODEL)
-    if os.path.exists(dest):
-        size_gb = os.path.getsize(dest) / 1e9
-        log(f"Model already exists: {CIVITAI_MODEL} ({size_gb:.1f} GB)")
-        return
-
-    os.makedirs(os.path.dirname(dest), exist_ok=True)
-    log(f"Downloading {CIVITAI_MODEL} from HuggingFace...")
-    run([
-        "curl", "-L", "-o", dest,
-        CIVITAI_URL,
-    ], check=True)
-    size_gb = os.path.getsize(dest) / 1e9
-    log(f"Downloaded: {CIVITAI_MODEL} ({size_gb:.1f} GB)")
-
-
-# ----------------------------------------------------------------------
 # Auto-inject SageAttention-T4 into workflow
 # ----------------------------------------------------------------------
 def inject_sageattn_into_workflows():
@@ -223,9 +204,6 @@ def main():
     step("Installing custom nodes")
     for name, repo in CUSTOM_NODES.items():
         install_node(name, repo)
-
-    step("Download Civitai model")
-    download_civitai_model()
 
     step("Model symlinks")
     for src, dst in SYMLINKS:
