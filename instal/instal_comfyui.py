@@ -3,38 +3,37 @@
 """
 instal_comfyui.py
 =================================================================
-ШАГ 1 из 3. Устанавливает ComfyUI и ноду ComfyUI-Manager.
+STEP 1 of 3. Installs ComfyUI and the ComfyUI-Manager node.
 
-Что здесь сделано для СКОРОСТИ и против КОНФЛИКТОВ:
-  * venv создаётся через `uv` вместо `virtualenv` — установка пакетов
-    в разы быстрее (uv ставит torch и зависимости параллельно).
-  * Python 3.12 — стабильные колёса (wheels) для torch cu130, быстрый
-    интерпретатор. Берётся управляемый uv-ом CPython (не зависим от
-    того, что окажется в образе Kaggle).
-  * torch собран под CUDA 13.0 (cu130) — драйвер Kaggle (580.x) его держит,
-    и ComfyUI 0.24 включает на нём оптимизированные CUDA-операции (на cu128
-    был warning и более медленный путь). Проверено на 2× T4.
-  * xformers НЕ ставим: последние сборки xformers не содержат ядер для
-    Turing (T4, compute 7.5) и только тормозят.
+What's done here for SPEED and CONFLICT PREVENTION:
+  * venv is created via `uv` instead of `virtualenv` — package installation
+    is much faster (uv installs torch and dependencies in parallel).
+  * Python 3.12 — stable wheels for torch cu130, fast interpreter.
+    Uses uv-managed CPython (not dependent on what's in the Kaggle image).
+  * torch built for CUDA 13.0 (cu130) — Kaggle driver (580.x) supports it,
+    and ComfyUI 0.24 enables optimized CUDA operations on it (cu128 had
+    a warning and slower path). Tested on 2× T4.
+  * xformers NOT installed: recent xformers builds don't contain kernels for
+    Turing (T4, compute 7.5) and only slow things down.
   * SageAttention-SM75-path (github.com/THE-ANGEL-AI/SageAttention-SM75-path):
-    форк с поддержкой Turing (sm_75) через CUDA kernel
-    `sageattn_qk_int8_pv_fp16_cuda_sm75`. Устанавливается в рантайме
-    из start.py (прямой pip, не uv — uv плохо собирает CUDA-расширения).
-    Если не встал — fallback на split-cross-attention.
-  * Внимание на T4: --use-sage-attention если Sage установлен,
-    иначе --use-split-cross-attention.
-  * НЕ ставим tensorflow и старые diffusers/transformers — они тянут
-    свои версии CUDA/численных библиотек и конфликтуют. Современные
-    версии приедут вместе с requirements кастомных нод (шаг 2).
+    fork with Turing (sm_75) support via CUDA kernel
+    `sageattn_qk_int8_pv_fp16_cuda_sm75`. Installed at runtime
+    from start.py (direct pip, not uv — uv handles CUDA extensions poorly).
+    Falls back to split-cross-attention if installation fails.
+  * T4-aware: --use-sage-attention if Sage is installed,
+    otherwise --use-split-cross-attention.
+  * Do NOT install tensorflow or old diffusers/transformers — they pull
+    their own versions of CUDA/numerical libraries and conflict.
+    Modern versions come with custom node requirements (step 2).
 
-Запуск (в блокноте):  !python instal/instal_comfyui.py
+Run (in notebook):  !python instal/instal_comfyui.py
 
-Скрипт ИДЕМПОТЕНТЕН: каждый шаг сначала проверяет, не сделан ли он уже
-(uv установлен? venv цел? torch с CUDA на месте? репозитории склонированы?),
-и пропускает лишнюю работу. Можно безопасно перезапускать.
+The script is IDEMPOTENT: each step first checks whether it's already done
+(uv installed? venv intact? torch with CUDA in place? repos cloned?),
+and skips redundant work. Safe to re-run.
 
-Вся логика путей/uv/venv вынесена в общий модуль kaggle_env.py — единый
-источник правды для всех трёх шагов (там же фикс персистентности uv).
+All path/uv/venv logic lives in the shared module kaggle_env.py — single
+source of truth for all three steps (uv persistence fix is there too).
 =================================================================
 """
 
@@ -43,8 +42,8 @@ import shutil
 import subprocess
 import sys
 
-# Общий модуль лежит рядом с этим файлом — подключаем по абсолютному пути,
-# не завися от текущего каталога (запуск как `!python instal/instal_comfyui.py`).
+# Shared module is next to this file — imported by absolute path,
+# not dependent on current directory (run as `!python instal/instal_comfyui.py`).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import kaggle_env as ke
 from kaggle_env import (
@@ -54,12 +53,12 @@ from kaggle_env import (
 )
 
 # ----------------------------------------------------------------------
-# Параметры, специфичные именно для шага 1 (пути/uv/venv — в kaggle_env.py).
+# Parameters specific to step 1 (paths/uv/venv are in kaggle_env.py).
 # ----------------------------------------------------------------------
-# CUDA 13.0: драйвер Kaggle (580.x) его поддерживает, а ComfyUI 0.24 на cu130
-# включает оптимизированные CUDA-операции (на cu128 был warning и медленный путь).
-# Проверено на 2× T4: оба GPU работают, предупреждение исчезает.
-# Если понадобится откат на 12.8 — поставь cu128.
+# CUDA 13.0: Kaggle driver (580.x) supports it, and ComfyUI 0.24 on cu130
+# enables optimized CUDA operations (cu128 had a warning and slower path).
+# Tested on 2× T4: both GPUs work, warning disappears.
+# If you need to roll back to 12.8 — set cu128.
 TORCH_INDEX  = "https://download.pytorch.org/whl/cu130"  # CUDA 13.0
 
 COMFYUI_REPO = "https://github.com/Comfy-Org/ComfyUI.git"
@@ -67,44 +66,44 @@ MANAGER_REPO = "https://github.com/ltdrdata/ComfyUI-Manager.git"
 
 
 # ----------------------------------------------------------------------
-# 1. Системные пакеты (ffmpeg для нод с видео/превью).
+# 1. System packages (ffmpeg for video/preview nodes).
 # ----------------------------------------------------------------------
 def install_system_packages():
-    step("Системные пакеты (ffmpeg)")
+    step("System packages (ffmpeg)")
     if shutil.which("ffmpeg"):
-        log("ffmpeg уже установлен (пропуск apt)")
+        log("ffmpeg already installed (skipping apt)")
         return
     run("apt-get update -qq", check=False)
     run("apt-get install -y -qq ffmpeg", check=False)
 
 
 # ----------------------------------------------------------------------
-# 2. uv + venv (вся логика — в kaggle_env, тут только последовательность).
+# 2. uv + venv (all logic is in kaggle_env, here just the sequence).
 # ----------------------------------------------------------------------
 def setup_uv_venv():
     install_python()
 
 
 # ----------------------------------------------------------------------
-# 3. PyTorch под CUDA 13.0 (главное для скорости генерации).
+# 3. PyTorch for CUDA 13.0 (key for generation speed).
 # ----------------------------------------------------------------------
 def install_torch():
-    step("PyTorch для CUDA 13.0 (cu130)")
+    step("PyTorch for CUDA 13.0 (cu130)")
     if ke.torch_cuda_ok():
-        log("torch с рабочей CUDA уже установлен (переустановка пропущена)")
+        log("torch with working CUDA already installed (reinstall skipped)")
     else:
         uv_pip_install(
             "torch==2.11.0", "torchvision==0.26.0", "torchaudio==2.11.0",
             extra_args=["--index-url", TORCH_INDEX],
         )
 
-    # nvidia-ml-py — torch импортирует pynvml (модуль из nvidia-ml-py).
-    # Ставим сразу, чтобы torch.cuda не споткнулся.
+    # nvidia-ml-py — torch imports pynvml (module from nvidia-ml-py).
+    # Install immediately so torch.cuda doesn't trip.
     uv_pip_install("nvidia-ml-py")
-    # NB: pynvml-редиректор НЕ удаляем здесь — он может переустановиться
-    # при установке ComfyUI/нод. Финальная зачистка в main().
+    # NB: we don't remove the pynvml redirect here — it may reinstall
+    # when ComfyUI/nodes are installed. Final cleanup in main().
 
-    # Проверяем, что torch видит CUDA — сразу ловим проблему, не на запуске.
+    # Check that torch sees CUDA — catch the problem immediately, not at launch.
     run([VENV_PYTHON, "-c",
          "import torch; "
          "print('Torch:', torch.__version__); "
@@ -115,7 +114,7 @@ def install_torch():
 
 
 # ----------------------------------------------------------------------
-# 4. ComfyUI: клон + его зависимости.
+# 4. ComfyUI: clone + its dependencies.
 # ----------------------------------------------------------------------
 def install_comfyui():
     step("ComfyUI")
@@ -125,14 +124,14 @@ def install_comfyui():
         run(["git", "-C", COMFY_DIR, "pull"], check=False)
 
     uv_pip_install("-r", f"{COMFY_DIR}/requirements.txt")
-    log("ComfyUI и его зависимости установлены")
+    log("ComfyUI and its dependencies installed")
 
 
 # ----------------------------------------------------------------------
-# 5. ComfyUI-Manager (менеджер нод — ставится здесь по ТЗ).
+# 5. ComfyUI-Manager (node manager — installed here per spec).
 # ----------------------------------------------------------------------
 def install_manager():
-    step("Нода ComfyUI-Manager")
+    step("ComfyUI-Manager node")
     manager_dir = f"{COMFY_DIR}/custom_nodes/ComfyUI-Manager"
     if not os.path.exists(manager_dir):
         run(["git", "clone", MANAGER_REPO, manager_dir])
@@ -142,17 +141,17 @@ def install_manager():
     req = f"{manager_dir}/requirements.txt"
     if os.path.exists(req):
         uv_pip_install("-r", req)
-    log("ComfyUI-Manager установлен")
+    log("ComfyUI-Manager installed")
 
 
 # ----------------------------------------------------------------------
-# 6. Небольшой набор общих пакетов, полезных большинству нод.
-#    (Современные версии, без старых пинов — чтобы не было конфликтов.)
+# 6. Small set of common packages useful for most nodes.
+#    (Modern versions, no old pins — to avoid conflicts.)
 # ----------------------------------------------------------------------
 def install_common_extras():
-    step("Общие вспомогательные пакеты")
+    step("Common helper packages")
     uv_pip_install(
-        "nvidia-ml-py",   # мониторинг GPU (Crystools)
+        "nvidia-ml-py",   # GPU monitoring (Crystools)
         "einops",
         "omegaconf",
         "timm",
@@ -160,11 +159,11 @@ def install_common_extras():
         "loguru",
         "imageio[ffmpeg]", "opencv-python", "ffmpeg-python",
     )
-    log("Вспомогательные пакеты установлены")
+    log("Helper packages installed")
 
 
 def main():
-    step("ШАГ 1: установка ComfyUI и Manager (uv + torch cu130)")
+    step("STEP 1: Installing ComfyUI and Manager (uv + torch cu130)")
     os.chdir(HOME_DIR)
 
     install_system_packages()
@@ -174,15 +173,15 @@ def main():
     install_manager()
     install_common_extras()
 
-    # Финальная зачистка pynvml-редиректора ПОСЛЕ всех установок.
-    # Если какой-то requirements.txt тянет pynvml как зависимость,
-    # он ставится обратно. Только финальный uninstall гарантирует
-    # чистоту перед запуском ComfyUI.
+    # Final pynvml redirect cleanup AFTER all installations.
+    # If any requirements.txt pulls pynvml as a dependency,
+    # it gets installed back. Only the final uninstall guarantees
+    # cleanliness before ComfyUI launch.
     uv_pip_install("nvidia-ml-py")
     run(["uv", "pip", "uninstall", "--python", VENV_PYTHON, "-q", "pynvml"],
         check=False)
 
-    log("ГОТОВО. ComfyUI установлен. Теперь запусти: !python instal/instal_castom_node.py")
+    log("DONE. ComfyUI installed. Now run: !python instal/instal_castom_node.py")
 
 
 if __name__ == "__main__":

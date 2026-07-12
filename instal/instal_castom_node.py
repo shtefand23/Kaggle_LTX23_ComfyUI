@@ -3,23 +3,23 @@
 """
 instal_castom_node.py
 =================================================================
-ШАГ 2 из 3. Ставит кастомные ноды и делает символьные ссылки на
-модели (как в исходном блокноте, но без конфликтов).
+STEP 2 of 3. Installs custom nodes and creates symlinks for models
+(like in the original notebook, but without conflicts).
 
-Главное изменение против тормозов на мульти-GPU:
-  * Вместо хака ComfyBootlegOffload.py ставится официальная нода
-    ComfyUI-MultiGPU (DisTorch2). Старый гист и DisTorch2 оба патчат
-    выгрузку слоёв и КОНФЛИКТУЮТ между собой — отсюда долгая генерация
-    на двух T4. Оставляем только ComfyUI-MultiGPU.
+Key change for multi-GPU performance:
+  * Instead of the ComfyBootlegOffload.py hack, the official
+    ComfyUI-MultiGPU (DisTorch2) node is installed. The old gist and
+    DisTorch2 both patch layer offloading and CONFLICT with each other —
+    causing slow generation on two T4s. We keep only ComfyUI-MultiGPU.
 
-Список нод и список ссылок на модели вынесены наверх — правь их там,
-ты добавляешь модели и ноды вручную.
+The node list and model symlink list are at the top — edit them there,
+you add models and nodes manually.
 
-Запуск (в блокноте):  !python instal/instal_castom_node.py
+Run (in notebook):  !python instal/instal_castom_node.py
 
-Перед работой скрипт проверяет, что ШАГ 1 выполнен (есть uv, рабочий venv
-и папка ComfyUI/custom_nodes). Если нет — выходит с понятной подсказкой.
-Логика путей/uv/venv — в общем модуле kaggle_env.py.
+Before running, the script checks that STEP 1 is complete (uv exists,
+working venv, and ComfyUI/custom_nodes folder). If not — exits with a
+clear hint. Path/uv/venv logic lives in the shared module kaggle_env.py.
 =================================================================
 """
 
@@ -27,7 +27,7 @@ import os
 import subprocess
 import sys
 
-# Общий модуль рядом с файлом — единый источник правды (пути, uv, venv).
+# Shared module next to file — single source of truth (paths, uv, venv).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kaggle_env import (
     COMFY_DIR, NODES_DIR, VENV_PYTHON,
@@ -36,30 +36,30 @@ from kaggle_env import (
 )
 
 # ----------------------------------------------------------------------
-# СПИСОК КАСТОМНЫХ НОД  (name -> git-репозиторий).
-# Добавляй/убирай ноды прямо здесь.
+# CUSTOM NODE LIST  (name -> git repository).
+# Add/remove nodes right here.
 # ----------------------------------------------------------------------
 CUSTOM_NODES = {
     "ComfyUI-Crystools":  "https://github.com/crystian/ComfyUI-Crystools.git",
     "ComfyUI-GGUF":       "https://github.com/city96/ComfyUI-GGUF.git",
     "ComfyUI-Logic":      "https://github.com/theUpsider/ComfyUI-Logic.git",
     "comfy-image-saver":  "https://github.com/giriss/comfy-image-saver.git",
-    # Официальная мульти-GPU нода (DisTorch2). Заменяет ComfyBootlegOffload.py.
+    # Official multi-GPU node (DisTorch2). Replaces ComfyBootlegOffload.py.
     "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
-    # KJNodes — большой набор утилитарных нод (маски, латенты, пайплайны и т.д.).
+    # KJNodes — large set of utility nodes (masks, latents, pipelines, etc.).
     "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
-    # FL-CosyVoice3 — синтез/клонирование речи (TTS) внутри графа ComfyUI.
+    # FL-CosyVoice3 — speech synthesis/cloning (TTS) inside ComfyUI graph.
     "ComfyUI_FL-CosyVoice3": "https://github.com/filliptm/ComfyUI_FL-CosyVoice3.git",
     # Ltx 2.3 Director
     "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
-    # LTX2 MultiGPU — авторская нода THE-ANGEL-AI.
-    # Собственная разработка с нуля: Hybrid Split Loader для LTX 2.3 GGUF на 2×T4 (Kaggle).
+    # LTX2 MultiGPU — author node by THE-ANGEL-AI.
+    # Custom-built from scratch: Hybrid Split Loader for LTX 2.3 GGUF on 2×T4 (Kaggle).
     "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
 }
 
 # ----------------------------------------------------------------------
-# СИМВОЛЬНЫЕ ССЫЛКИ НА МОДЕЛИ  (источник в /kaggle/input -> папка ComfyUI).
-# Это твой раздел: меняй пути под свои датасеты/модели.
+# MODEL SYMLINKS  (source in /kaggle/input -> ComfyUI folder).
+# This is your section: change paths for your datasets/models.
 # ----------------------------------------------------------------------
 SYMLINKS = [
     # (Flux2)
@@ -112,74 +112,74 @@ SYMLINKS = [
 
 
 def uv_pip_install_req(req_path):
-    """Ставит requirements ноды в наш venv через uv."""
+    """Installs node requirements into our venv via uv."""
     result = run(["uv", "pip", "install", "--python", VENV_PYTHON, "-r", req_path], check=False)
     if result and result.returncode != 0:
-        warn(f"Установка requirements ноды не удалась: {req_path}")
+        warn(f"Failed to install node requirements: {req_path}")
 
 
 def check_prerequisites():
-    """Проверяем, что ШАГ 1 выполнен: есть uv, рабочий venv и custom_nodes."""
-    step("Проверка окружения (результат ШАГА 1)")
+    """Checks that STEP 1 is complete: uv exists, working venv, custom_nodes."""
+    step("Checking environment (STEP 1 result)")
 
-    # install_python() централизованно ставит/чинит uv + venv (включая +x).
+    # install_python() centrally installs/repairs uv + venv (including +x).
     install_python()
 
     if not os.path.exists(NODES_DIR):
         raise RuntimeError(
-            f"Не найдена папка {NODES_DIR}. "
-            "Сначала запусти: !python instal/instal_comfyui.py"
+            f"Folder {NODES_DIR} not found. "
+            "First run: !python instal/instal_comfyui.py"
         )
-    log("Окружение готово: uv, venv и ComfyUI на месте")
+    log("Environment ready: uv, venv and ComfyUI in place")
 
 
 # ----------------------------------------------------------------------
-# Установка одной ноды: clone (или pull) + её requirements.
+# Installing one node: clone (or pull) + its requirements.
 # ----------------------------------------------------------------------
 def install_node(name, repo):
     target = os.path.join(NODES_DIR, name)
     if not os.path.exists(target):
         run(["git", "clone", repo, target])
     else:
-        # Если remote URL изменился (форк переехал) — обновляем
+        # If remote URL changed (fork moved) — update it
         cur = subprocess.run(
             ["git", "-C", target, "remote", "get-url", "origin"],
             capture_output=True, text=True).stdout.strip()
         if cur != repo:
-            warn(f"Смена remote URL: {cur} → {repo}")
+            warn(f"Remote URL changed: {cur} → {repo}")
             run(["git", "-C", target, "remote", "set-url", "origin", repo])
         run(["git", "-C", target, "pull"], check=False)
 
     req = os.path.join(target, "requirements.txt")
     if os.path.exists(req):
         uv_pip_install_req(req)
-    log(f"Нода готова: {name}")
+    log(f"Node ready: {name}")
 
 
 # ----------------------------------------------------------------------
-# Создание символьной ссылки на модель (идемпотентно).
+# Create a symlink to a model (idempotent).
 # ----------------------------------------------------------------------
 def make_symlink(src, dst):
     if not os.path.exists(src):
-        warn(f"Источник не найден, пропуск: {src}")
+        warn(f"Source not found, skipping: {src}")
         return
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     if os.path.islink(dst) or os.path.exists(dst):
-        os.remove(dst)            # пересоздаём, чтобы ссылка всегда была актуальной
+        os.remove(dst)            # recreate so the link is always up-to-date
     os.symlink(src, dst)
-    log(f"Ссылка: {os.path.basename(dst)}")
+    log(f"Link: {os.path.basename(dst)}")
 
 
 # ----------------------------------------------------------------------
-# Авто-вставка SageAttention-T4 в workflow
+# Auto-inject SageAttention-T4 into workflow
 # ----------------------------------------------------------------------
 def inject_sageattn_into_workflows():
     print()
-    print('\033[96m=== Авто-вставка SageAttention-T4 в workflow ===\033[0m', flush=True)
+    print('\033[96m=== Auto-inject SageAttention-T4 into workflow ===\033[0m', flush=True)
 
     sage_node_dir = os.path.join(NODES_DIR, 'SageAttention-T4')
     if not os.path.isdir(sage_node_dir):
-        warn('Нода SageAttention-T4 не найдена в custom_nodes — пропускаю')
+        warn('SageAttention-T4 node not found in custom_nodes — skipping')
         return
 
     injector = os.path.join(
@@ -188,36 +188,35 @@ def inject_sageattn_into_workflows():
     )
 
     if not os.path.exists(injector):
-        warn(f'Инжектор не найден: {injector}')
-        log('Добавь ноду SageAttention-T4 вручную или перезапусти скрипт')
+        warn(f'Injector not found: {injector}')
+        log('Add SageAttention-T4 node manually or re-run the script')
         return
 
     workflows_dir = os.path.join(COMFY_DIR, 'user', 'default', 'workflows')
     if not os.path.isdir(workflows_dir):
-        warn(f'Папка workflow не найдена: {workflows_dir}')
-        log('Добавь ноду SageAttention-T4 вручную или сохрани workflow и перезапусти скрипт')
+        warn(f'Workflow folder not found: {workflows_dir}')
+        log('Add SageAttention-T4 node manually or save workflow and re-run script')
         return
 
     run([sys.executable, injector, workflows_dir], check=False)
 
 
 def main():
-    step("ШАГ 2: кастомные ноды + ссылки на модели")
+    step("STEP 2: custom nodes + model links")
 
     check_prerequisites()
 
-    step("Установка кастомных нод")
+    step("Installing custom nodes")
     for name, repo in CUSTOM_NODES.items():
         install_node(name, repo)
 
-    step("Символьные ссылки на модели")
+    step("Model symlinks")
     for src, dst in SYMLINKS:
         make_symlink(src, dst)
 
-    log("ГОТОВО. Ноды и модели на месте. Теперь запусти: %run instal/start.py")
+    log("DONE. Nodes and models in place. Now run: %run instal/start.py")
     # SageAttention-T4 workflow injection happens later in start.py (after symlink creation)
 
 
 if __name__ == "__main__":
     main()
-

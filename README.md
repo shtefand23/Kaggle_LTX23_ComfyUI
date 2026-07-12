@@ -1,364 +1,296 @@
-# ☁️ Kaggle Cloud — ComfyUI на бесплатных 2× Tesla T4
+# ☁️ Kaggle Cloud — ComfyUI on Free 2× Tesla T4
 
-> Проект **[THE ANGEL AI](https://vk.com/theangel_lab)** — запускаем тяжёлые
-> генеративные пайплайны **ComfyUI** (Flux2 GGUF, LTX 2.3 Video, TTS) прямо в
-> бесплатном Kaggle-блокноте на **двух Tesla T4**, без локального GPU и без
-> оплаты облака.
+> Project **[THE ANGEL AI](https://vk.com/theangel_lab)** — running heavy
+> generative **ComfyUI** pipelines (Flux2 GGUF, LTX 2.3 Video, TTS) directly in
+> a free Kaggle notebook on **two Tesla T4**, with no local GPU and no cloud billing.
 
-[![Поддержать проект](https://img.shields.io/badge/💖_Поддержать-Boosty-f15f2c?style=for-the-badge)](https://boosty.to/the_angel/donate)
-[![ВКонтакте](https://img.shields.io/badge/Сообщество-ВКонтакте-0077FF?style=for-the-badge&logo=vk)](https://vk.com/theangel_lab)
-
----
-
-## 🎯 Что это и зачем
-
-Kaggle бесплатно даёт **2× Tesla T4 (по 16 ГБ) на 30 часов в неделю** — этого
-хватает, чтобы крутить Flux2, видео-пайплайны и TTS. Но «голый» Kaggle — это боль:
-
-- ❌ окружение слетает после каждого рестарта сессии
-- ❌ бинарники теряют бит исполнения (`+x`) — файлы есть, но не работают
-- ❌ при обновлении ядра Kaggle старый Python несовместим с новой libc
-- ❌ мульти-GPU (2× T4) конфликтует без правильной настройки
-- ❌ через 40 минут бездействия Kaggle усыпляет сессию
-
-**Этот репозиторий превращает запуск в одну строку и чинит всё автоматически.**
+[![Support the project](https://img.shields.io/badge/💖_Support-Boosty-f15f2c?style=for-the-badge)](https://boosty.to/the_angel/donate)
+[![VK](https://img.shields.io/badge/Community-VK-0077FF?style=for-the-badge&logo=vk)](https://vk.com/theangel_lab)
 
 ---
 
-## 📂 Структура
+## 🎯 What This Is and Why
+
+Kaggle gives you **2× Tesla T4 (16 GB each) for 30 hours per week** for free — that's
+enough to run Flux2, video pipelines, and TTS. But a "naked" Kaggle is painful:
+
+- ❌ Environment breaks after every session restart
+- ❌ Binaries lose execute bit (`+x`) — files are there but won't run
+- ❌ When Kaggle updates the kernel, old Python is incompatible with the new libc
+- ❌ Multi-GPU (2× T4) conflicts without proper configuration
+- ❌ After 40 minutes of inactivity, Kaggle puts the session to sleep
+
+**This repository turns the launch into a single line and fixes everything automatically.**
+
+---
+
+## 📂 Structure
 
 ```
 Kaggle_Workspace_FreeGPU/
-├─ README.md                  # этот файл
-├─ instal/                    # ☕ ядро: скрипты установки и запуска
-│  ├─ instal_comfyui.py       #   ШАГ 1: uv + venv + torch cu130 + ComfyUI
-│  ├─ instal_castom_node.py   #   ШАГ 2: кастомные ноды + модели
-│  ├─ start.py                #   ШАГ 3: запуск + туннель + панель + keep-alive
-│  └─ kaggle_env.py           #   движок: пути, uv, ремонт venv, диагностика
-├─ Notebook/                  # 📓 готовые блокноты для импорта в Kaggle
+├─ README.md                  # this file
+├─ instal/                    # ☕ core: installation and launch scripts
+│  ├─ instal_comfyui.py       #   STEP 1: uv + venv + torch cu130 + ComfyUI
+│  ├─ instal_castom_node.py   #   STEP 2: custom nodes + models
+│  ├─ start.py                #   STEP 3: launch + tunnel + panel + keep-alive
+│  └─ kaggle_env.py           #   engine: paths, uv, venv repair, diagnostics
+├─ Notebook/                  # 📓 ready-to-import Kaggle notebooks
 │  ├─ confyui-main.ipynb
 │  └─ gemma_kaggle_server.ipynb
-├─ workflows/                 # 🎨 ComfyUI-воркфлоу (импорт drag-n-drop)
+├─ workflows/                 # 🎨 ComfyUI workflows (drag-n-drop import)
 │  ├─ Flux2dev32b_GGUF.json
 │  ├─ Flux2dev32b_GGUF v2 API.json
 │  └─ LTX_Director-V2-Beta.json
-├─ docs-site/                 # 🌐 сайт документации (GitHub Pages)
-└─ _kaggle_tests/             # 🧪 тесты для проверки на Kaggle
+├─ docs-site/                 # 🌐 documentation site (GitHub Pages)
+└─ _kaggle_tests/             # 🧪 tests for Kaggle verification
 ```
 
 ---
 
-## 🚀 Быстрый старт
+## 🚀 Quick Start
 
-Открой блокнот Kaggle, включи **GPU T4 ×2** и интернет, выполни по порядку:
+Open a Kaggle notebook, enable **GPU T4 ×2** and internet, run in order:
 
 ```python
-# 0. Получить скрипты (первый раз — clone, потом — pull)
+# 0. Get the scripts (first time — clone, then — pull)
 !git clone https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU.git || \
  git -C Kaggle_Workspace_FreeGPU pull
 
 # 1. ComfyUI + Manager
 !python Kaggle_Workspace_FreeGPU/instal/instal_comfyui.py
 
-# 2. Кастомные ноды + модели
+# 2. Custom nodes + models
 !python Kaggle_Workspace_FreeGPU/instal/instal_castom_node.py
 
-# 3. Запуск + Cloudflare-туннель + панель управления
+# 3. Launch + Cloudflare tunnel + control panel
 %run Kaggle_Workspace_FreeGPU/instal/start.py
 ```
 
-> 💡 **Можно одной строкой.** `start.py` сам проверит окружение, доставит
-> недостающее и запустит всё. Для холодного старта достаточно `%run .../instal/start.py`.
+> 💡 **You can do it in one line.** `start.py` will check the environment itself, install
+> what's missing, and launch everything. For a cold start, `%run .../instal/start.py` is enough.
 
-После шага 3 под ячейкой появятся кнопки:
+After step 3, buttons will appear under the cell:
 
-| Кнопка | Что делает |
-|--------|-----------|
-| 🔗 **Открыть ComfyUI** | Публичная ссылка Cloudflare (новая на каждый запуск) |
-| 🛑 **Остановить** | Гасит ComfyUI и туннель без перезапуска ядра |
-| 🔄 **Перезапустить** | Поднимает ComfyUI заново (новый URL) |
-
----
-
-## 🏗️ Архитектура: три шага
-
-| Шаг | Файл | Что ставит / делает | Запуск |
-|-----|------|---------------------|--------|
-| 1 | `instal_comfyui.py` | uv + venv (Python 3.12) + torch cu130 + ComfyUI + Manager + общие пакеты | `!python instal/instal_comfyui.py` |
-| 2 | `instal_castom_node.py` | 8 кастомных нод из списка + симлинки моделей из `/kaggle/input` + авто-инжекция SageAttention-T4 в workflow | `!python instal/instal_castom_node.py` |
-| 3 | `start.py` | проверка/ремонт окружения → сборка SageAttention-SM75 + symlink ноды → ComfyUI → Cloudflare-туннель → панель кнопок → keep-alive | `%run instal/start.py` |
-| — | `kaggle_env.py` | **ядро системы**: пути, uv, создание/ремонт/диагностика venv, `install_python()` | импортируется всеми |
+| Button | What it does |
+|--------|-------------|
+| 🔗 **Open ComfyUI** | Public Cloudflare link (new one for each launch) |
+| 🛑 **Stop** | Shuts down ComfyUI and tunnel without restarting the kernel |
+| 🔄 **Restart** | Brings ComfyUI back up (new URL) |
 
 ---
 
-## 🛡️ Самоисцеление: как окружение чинится само
+## 🏗️ Architecture: Three Steps
 
-**Проблема.** Kaggle при рестарте сессии:
-1. 🧨 **Сбрасывает бит `+x`** — файлы на месте, но не исполняются
-2. 🧨 **Обновляет ядро ОС** — старый CPython (скомпилирован под другую libc)
-   падает при запуске. Файл есть, а запустить нельзя.
+| Step | File | What it installs / does | Run |
+|------|------|------------------------|-----|
+| 1 | `instal_comfyui.py` | uv + venv (Python 3.12) + torch cu130 + ComfyUI + Manager + common packages | `!python instal/instal_comfyui.py` |
+| 2 | `instal_castom_node.py` | 8 custom nodes from list + model symlinks from `/kaggle/input` + auto-inject SageAttention-T4 into workflow | `!python instal/instal_castom_node.py` |
+| 3 | `start.py` | Environment check/repair → build SageAttention-SM75 + node symlink → ComfyUI → Cloudflare tunnel → button panel → keep-alive | `%run instal/start.py` |
+| — | `kaggle_env.py` | **System core**: paths, uv, venv creation/repair/diagnostics, `install_python()` | imported by all |
 
-**Как это чинится (3 уровня, по возрастанию стоимости):**
+---
+
+## 🛡️ Self-Healing: How the Environment Fixes Itself
+
+**Problem.** Kaggle on session restart:
+1. 🧨 **Resets the `+x` bit** — files are in place but won't execute
+2. 🧨 **Updates the OS kernel** — old CPython (compiled against a different libc) fails on launch. The file exists but can't be run.
+
+**How this is fixed (3 levels, by increasing cost):**
 
 ```
-venv сломан?
- ├─ 🔧 Уровень 1 — восстановить +x (секунда)
- │   Если venv/bin/python и базовый CPython просто потеряли бит исполнения —
- │   chmod 755 чинит всё за миллисекунды. Torch не трогаем.
+venv broken?
+ ├─ 🔧 Level 1 — restore +x (one second)
+ │   If venv/bin/python and base CPython just lost the execute bit —
+ │   chmod 755 fixes everything in milliseconds. Torch is untouched.
  │
- ├─ 🔧 Уровень 2 — переустановить базовый CPython (10-30 сек)
- │   Если +x не помог — значит, обновилось ядро Kaggle. Старый CPython
- │   несовместим с новой libc → удаляем его и ставим свежий через uv.
- │   Пакеты в venv пока живы (но симлинк битый, venv всё равно не работает).
+ ├─ 🔧 Level 2 — reinstall base CPython (10-30 seconds)
+ │   If +x didn't help — Kaggle updated the kernel. Old CPython
+ │   is incompatible with the new libc → we remove it and install
+ │   a fresh one via uv. Packages in venv are still alive (but the
+ │   symlink is broken, venv still doesn't work).
  │
- └─ 🔧 Уровень 3 — пересоздать venv + torch (из кэша — быстро)
-     Старый venv удаляется, создаётся новый на свежем CPython.
-     Torch и пакеты переставляются из uv-кэша — не качаются заново.
-     После этого start.py автоматически переустанавливает зависимости нод.
+ └─ 🔧 Level 3 — recreate venv + torch (from cache — fast)
+     Old venv is deleted, new one created on fresh CPython.
+     Torch and packages are reinstalled from uv cache — not downloaded
+     again. After this, start.py automatically reinstalls node dependencies.
 ```
 
 <details>
-<summary><b>🔬 Технически: как это работает</b></summary>
+<summary><b>🔬 Technical: How It Works</b></summary>
 
 ```python
 def install_python():
-    """Единая точка входа: uv + venv (создан/починен/пересоздан)
-       Returns: True если всё уже работало, False если был ремонт
+    """Single entry point: uv + venv (created/repaired/recreated)
+       Returns: True if everything was already working, False if repair happened
     """
     ensure_uv()
     return ensure_venv()
 
 def venv_python_ok():
-    """Проверка реальным запуском, а не os.path.exists"""
+    """Check by actually running, not os.path.exists"""
     subprocess.run([VENV_PYTHON, "-c", "pass"],
                    check=True, capture_output=True, timeout=30)
 
 def repair_venv_perms():
-    """Уровень 1: быстро чинит +x на всём исполняемом"""
-    candidates = [venv/bin/python, реальный CPython, uv, python3*]
+    """Level 1: quickly fixes +x on everything executable"""
+    candidates = [venv/bin/python, real CPython, uv, python3*]
     for c in candidates: os.chmod(c, 0o755)
 
 def repair_base_python_via_uv():
-    """Уровень 2: CPython несовместим с ядром — переустановка"""
+    """Level 2: CPython incompatible with kernel — reinstall"""
     shutil.rmtree(UV_PYTHON_DIR)
     run(["uv", "python", "install", "3.12"])
 
 def ensure_venv():
-    """Уровень 3: uv venv --clear (пакеты из кэша), возвращает флаг"""
-    if venv_python_ok(): return True   # всё ок
-    if repair_venv_perms(): return False  # +x починил
+    """Level 3: uv venv --clear (packages from cache), returns flag"""
+    if venv_python_ok(): return True   # all good
+    if repair_venv_perms(): return False  # +x fixed it
     repair_base_python_via_uv()
     run(["uv", "venv", ... "--clear"])
-    return False  # был пересоздан — torch мог пропасть
+    return False  # was recreated — torch may be gone
 ```
 </details>
 
-### 🩺 Диагностика: почему сломалось
+### 🩺 Diagnostics: Why It Broke
 
-Если venv не работает — скрипт **точно скажет причину** в логе:
+If venv doesn't work — the script will **exactly tell you the reason** in the log:
 
-| Симптом | Диагноз | Что сделает скрипт |
-|---------|---------|-------------------|
-| `No such file or directory` | Битый симлинк — `venv/bin/python` ведёт в никуда | Пересоздаст venv |
-| `Permission denied` | Слетел бит `+x` | chmod 755 (секунда) |
-| `version GLIBC_2.38 not found` | Обновилось ядро Kaggle, старый CPython несовместим | `uv python install` (свежий CPython) |
-| `FATAL: kernel too old` | Ядро ОС новее, чем тот, под которое собран CPython | То же — переустановка CPython |
+| Symptom | Diagnosis | What the script does |
+|---------|-----------|---------------------|
+| `No such file or directory` | Broken symlink — `venv/bin/python` points to nothing | Recreates venv |
+| `Permission denied` | Lost `+x` bit | chmod 755 (one second) |
+| `version GLIBC_2.38 not found` | Kaggle updated kernel, old CPython incompatible | `uv python install` (fresh CPython) |
+| `FATAL: kernel too old` | OS kernel newer than what CPython was compiled for | Same — reinstall CPython |
 
 ---
 
-## 🔒 Защита от усыпания Kaggle
+## 🔒 Kaggle Anti-Sleep Protection
 
-**Проблема.** Kaggle через ~40 минут бездействия показывает *"Are you still there?"*
-и может остановить сессию, особенно если вкладка свёрнута.
+**Problem.** Kaggle after ~40 minutes of inactivity shows *"Are you still there?"*
+and may stop the session, especially if the tab is minimized.
 
-**Как мы это решили:**
+**How we solved this:**
 
 ```
-2 независимых слоя keep-alive, работающих параллельно:
+2 independent keep-alive layers working in parallel:
 
 ┌─────────────────────────────────────────────────────┐
-│ 🖥️  Слой 1: Heartbeat-виджет (каждые 30 сек)        │
-│    Обновляет HTML-строку в панели управления.         │
-│    Создаёт трафик ядро → браузер — Kaggle видит       │
-│    активность и не трогает сессию.                    │
-│    Живёт, пока открыта вкладка.                       │
+│ 🖥️  Layer 1: Heartbeat widget (every 30 seconds)    │
+│    Updates an HTML string in the control panel.      │
+│    Creates traffic browser → Kaggle sees activity    │
+│    and doesn't touch the session.                    │
+│    Lives as long as the tab is open.                 │
 ├─────────────────────────────────────────────────────┤
-│ 📢  Слой 2: Stdout-пульс (каждые 5 минут)            │
-│    Пишет 💓 [14:32:01] ComfyUI активен... прямо       │
-│    в stdout ячейки через print(flush=True).           │
-│    Гарантированно отправляет данные на сервер Kaggle  │
-│    даже если вкладка свёрнута — не зависит от         │
-│    браузера. Предотвращает "Are you still there?".    │
+│ 📢  Layer 2: Stdout pulse (every 5 minutes)          │
+│    Prints 💓 [14:32:01] ComfyUI active... directly   │
+│    to the cell stdout via print(flush=True).         │
+│    Guaranteed to send data to Kaggle servers even    │
+│    if the tab is minimized — doesn't depend on the   │
+│    browser. Prevents "Are you still there?".         │
 └─────────────────────────────────────────────────────┘
 ```
 
 <details>
-<summary><b>🔬 Технически: два потока в start.py</b></summary>
+<summary><b>🔬 Technical: Two threads in start.py</b></summary>
 
 ```python
 def launch(self):
-    Thread(target=self._heartbeat_loop, daemon=True).start()    # виджет, 30с
-    Thread(target=self._stdout_keep_alive, daemon=True).start() # stdout, 5 мин
+    Thread(target=self._heartbeat_loop, daemon=True).start()    # widget, 30s
+    Thread(target=self._stdout_keep_alive, daemon=True).start() # stdout, 5 min
     Thread(target=self._startup, daemon=True).start()
-    self._keep_alive()  # основной цикл ячейки (держит kernel активным)
+    self._keep_alive()  # main cell loop (keeps kernel active)
 
 def _stdout_keep_alive(self):
-    print("🔒 [ЗАЩИТА] Система защиты Kaggle активирована!", flush=True)
+    print("🔒 [PROTECTION] Kaggle protection system activated!", flush=True)
     while not self.stopped:
         time.sleep(300)
         now = datetime.now().strftime("%H:%M:%S")
-        print(f"💓 [{now}] ComfyUI активен, ожидание запроса...", flush=True)
+        print(f"💓 [{now}] ComfyUI active, waiting for request...", flush=True)
 ```
 </details>
 
 ---
 
-## ⚡ Что оптимизировано для скорости на T4
+## ⚡ What's Optimized for T4 Speed
 
-| Оптимизация | Зачем |
-|-------------|-------|
-| **uv вместо pip** | Параллельная установка пакетов, torch в разы быстрее |
-| **torch cu130** | CUDA 13.0 — драйвер Kaggle 580.x его держит; на cu128 был warning и медленный путь |
-| **SageAttention-SM75** 🆕 | **Собственный CUDA-кернел** под T4 (Turing): INT8 QK + FP16 PV + FP32 accum. До **2.5×** attention на длинных контекстах. Работает как ComfyUI custom node (`SageAttention-T4 Apply`) — через `add_object_patch()`, без глобальных monkey-patch и без флагов запуска |
-| **Без xformers** | Несовместим с T4 (sm_75). Раньше fallback на `--use-pytorch-cross-attention`, теперь на `--use-split-cross-attention` |
-| **ComfyUI-MultiGPU** | DisTorch2 вместо старого хака ComfyBootlegOffload (они конфликтовали) |
-| **Без tensorflow / старых пинов** | Тянут свои версии CUDA, ломают современные ноды |
-| **smart-memory включён** | Модель кэшируется в VRAM между генерациями |
-| **uv-кэш в /kaggle/working** | Wheels (torch и др.) переживают рестарт — переустановка из кэша, не из сети |
-
----
-
-## 🧠 SageAttention-SM75 — ускоренное внимание на T4
-
-> **Собственный CUDA-кернел** под архитектуру Turing (sm_75) — INT8 тензорные ядра
-> для QK⊤ + FP16 для PV + FP32 аккумуляция. Работает на T4, RTX 2080, Quadro RTX.
-
-Кернел живёт в форке **[THE-ANGEL-AI/SageAttention-SM75-path](https://github.com/THE-ANGEL-AI/SageAttention-SM75-path)**. `start.py` при старте:
-1. Клонирует/обновляет форк
-2. Собирает CUDA-расширение через `pip install -e .`
-3. Создаёт **symlink** в `custom_nodes/SageAttention-T4` — ComfyUI видит ноду
-4. **Авто-инжектит** ноду `SageAttention-T4 Apply` в сохранённые workflow
-
-Всё это происходит **автоматически** при каждом запуске. Если сборка не удалась — fallback на `--use-split-cross-attention`.
-
-### 📊 Прирост скорости
-
-| Длина контекста | Ускорение attention | End-to-end (видео) |
-|----------------|--------------------|--------------------|
-| 2K | ~1.3× | +10-15% |
-| 8K | ~1.8× | +30-40% |
-| 16K | ~2.5× | +60-75% |
-
-### 🔌 ComfyUI Custom Node
-
-После установки в меню нод появляется категория **🧠 SageAttention-T4** с двумя нодами:
-
-| Нода | Назначение |
-|------|-----------|
-| **SageAttention-T4 Apply** | Вставь между загрузчиком модели и сэмплером. Параметры: `smooth_k` (on/off), `enable` (on/off) |
-| **SageAttention-T4 Remove** | Убирает патч, возвращает оригинальное внимание |
-
-Нода использует `model.add_object_patch()` — патч действует **только на эту модель**, не ломая другие части workflow. Workflow-файлы в `ComfyUI/user/default/workflows/` автоматически получают ноду при запуске.
+| Optimization | Why |
+|-------------|-----|
+| **uv instead of pip** | Parallel package installation, torch installs much faster |
+| **torch cu130** | CUDA 13.0 — Kaggle driver 580.x supports it; cu128 had a warning and slower path |
+| **SageAttention-SM75** 🆕 | **Custom CUDA kernel** for T4 (Turing): INT8 QK + FP16 PV + FP32 accum. Up to **2.5×** attention on long contexts. Works as a ComfyUI custom node (`SageAttention-T4 Apply`) — via `add_object_patch()`, no global monkey-patches and no launch flags |
+| **No xformers** | Incompatible with T4 (sm_75). Previously fell back to `--use-pytorch-cross-attention`, now uses `--use-split-cross-attention` |
+| **ComfyUI-MultiGPU** | DisTorch2 instead of the old ComfyBootlegOffload hack (they conflicted) |
+| **No tensorflow / old pins** | They pull their own CUDA versions, breaking modern nodes |
+| **smart-memory enabled** | Model is cached in VRAM between generations |
+| **uv cache in /kaggle/working** | Wheels (torch etc.) survive restarts — reinstall from cache, not network |
 
 ---
 
-## 🖥️ Мульти-GPU (2× T4)
+## 🧠 SageAttention-SM75 — Accelerated Attention on T4
 
-В графе используй ноды **ComfyUI-MultiGPU** (DisTorch2):
-- `UnetLoaderGGUFAdvancedDisTorch2MultiGPU` — для Flux2-GGUF
-- `*CLIPLoaderGGUFDisTorch2MultiGPU` — для текст-энкодера
+SageAttention-SM75 is a **custom CUDA kernel** for NVIDIA Turing (T4, sm_75)
+that replaces standard PyTorch attention with a quantized implementation:
 
-Они распределяют слои между `cuda:0`, `cuda:1` и CPU. Для двух T4 удобно начать
-с режима Virtual VRAM или ratio (0.6 / 0.4 между картами).
+| Component | Precision | Purpose |
+|-----------|-----------|---------|
+| Q·K matmul | INT8 | 4× less memory, faster compute on Turing tensor cores |
+| Softmax | FP32 | Numerical stability |
+| Attention × V | FP16 | Matches T4's native format |
+| Output accumulator | FP32 | Prevents overflow |
 
----
+**Performance:** Up to **2.5× faster** on long sequences (high-res images, long videos).
 
-## 📦 Модели
-
-Симлинки из `/kaggle/input` → папки ComfyUI. Настраиваются в `instal_castom_node.py` (список `SYMLINKS`).
-
-### Flux2 Dev (GGUF)
-
-| Файл | Назначение |
-|------|-----------|
-| `flux2-dev-Q4_0.gguf` | Основная модель (диффузия) |
-| `mistral_3_small_flux2_fp8.safetensors` | Текст-энкодер (CLIP) |
-| `flux2-vae.safetensors` | VAE |
-
-### LTX 2.3 Video
-
-| Файл | Назначение |
-|------|-----------|
-| `ltx-2.3-22b-distilled-1.1-Q6_K.gguf` | Основная модель |
-| `gemma-3-12b-it-heretic-fp4-comfy.safetensors` | Текст-энкодер |
-| `ltx-2.3_text_projection_bf16.safetensors` | Текст-проекция |
-| `LTX23_video_vae_bf16.safetensors` | Видео-VAE |
-| `LTX23_audio_vae_bf16.safetensors` | Аудио-VAE |
-| `taeltx2_3.safetensors` | VAE |
-| `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` | Апскейлер |
-| `LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors` | LoRA (говорящая голова) |
-| `LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors` | LoRA |
-| `ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors` | LoRA |
+**How it works:**
+- Installed as a ComfyUI custom node (`SageAttention-T4`)
+- Activated via `add_object_patch()` on the model — no global monkey-patches
+- Falls back gracefully to `split-cross-attention` if installation fails
+- Only activates when `--use-sage-attention` flag is present
 
 ---
 
-## 🧩 Кастомные ноды
+## 📝 Workflow Files
 
-Ставятся автоматически на шаге 2. Список — словарь `CUSTOM_NODES` в `instal_castom_node.py`.
+Pre-built ComfyUI workflows are in the `workflows/` directory:
 
-| Нода | Назначение |
-|------|-----------|
-| **ComfyUI-Crystools** | Мониторинг GPU, температуры, VRAM |
-| **ComfyUI-GGUF** | Загрузка GGUF-моделей (Flux2, LTX) |
-| **ComfyUI-Logic** | Логические операторы в графе |
-| **comfy-image-saver** | Сохранение изображений с метаданными |
-| **ComfyUI-MultiGPU** | Multi-GPU (DisTorch2) для 2× T4 |
-| **ComfyUI-KJNodes** | Утилиты: маски, латенты, пайплайны |
-| **ComfyUI_FL-CosyVoice3** | TTS — синтез и клонирование речи |
-| **WhatDreamsCost-ComfyUI** | LTX 2.3 Director (таймлайн-оркестратор видео) |
-| **SageAttention-T4** 🆕 | Кастомная нода — INT8-внимание через `add_object_patch()`. Ставится `start.py` из [THE-ANGEL-AI/SageAttention-SM75-path](https://github.com/THE-ANGEL-AI/SageAttention-SM75-path) |
-| **ComfyUI-Manager** | Менеджер нод (ставится на шаге 1) |
+| Workflow | Description |
+|----------|-------------|
+| `Flux2dev32b_GGUF.json` | Flux2 Dev 32B quantized — text-to-image |
+| `Flux2dev32b_GGUF v2 API.json` | Flux2 Dev with API interface |
+| `LTX_Director-V2-Beta.json` | LTX 2.3 video generation |
+
+Import them into ComfyUI via drag-n-drop after launching.
 
 ---
 
-## 🔧 Настройка под себя
+## 🧪 Testing
 
-| Что хочешь сделать | Куда идти |
-|--------------------|-----------|
-| ➕ Добавить ноду | `CUSTOM_NODES` в `instal_castom_node.py` |
-| ➕ Добавить модель | `SYMLINKS` в `instal_castom_node.py` |
-| 📦 Общий pip-пакет | `install_common_extras()` в `instal_comfyui.py` |
-| 🧠 SageAttention (сборка/нода) | `_install_sage_attention()` в `start.py` — меняй URL форка или флаги компиляции |
-| 🚀 Флаги запуска ComfyUI | `_start_comfy()` в `start.py` |
-| 🔄 Частоту пульса keep-alive | `_stdout_keep_alive()` в `start.py` (сейчас 300 сек) |
+The `_kaggle_tests/` directory contains scripts for verifying the installation on Kaggle:
 
-> 🔄 **Авто-обновление.** `start.py` при старте делает `git pull --ff-only` —
-> правки скриптов прилетают на Kaggle сами.
+```bash
+# Run all tests
+!python _kaggle_tests/run_all.py
+```
 
 ---
 
-## 🌐 Лендинг / GitHub Pages
+## 📄 License
 
-React-сайт проекта (Vite + React 19 + TypeScript + Framer Motion) живёт
-в **ветке [`site`](https://github.com/THE-ANGEL-AI/Kaggle_Workspace_FreeGPU/tree/site)**
-этого репозитория. Ветка `main` содержит только скрипты — без тяжёлого кода сайта.
-Задеплоено через GitHub Actions.
+MIT — use freely, modify freely. If this helps you, consider supporting the project.
 
 ---
 
-## 💖 Поддержать проект
+## 🤝 Contributing
 
-Проект развивается силами **THE ANGEL AI** и остаётся бесплатным. Если он
-сэкономил вам деньги на облаке или GPU — поддержите развитие:
-
-### 👉 **[Поддержать на Boosty](https://boosty.to/the_angel/donate)**
-
-## 🌐 Сообщество
-
-Вопросы, гайды, анонсы и помощь по запуску — в нашей группе:
-
-### 👉 **[THE ANGEL AI — ВКонтакте](https://vk.com/theangel_lab)**
+Issues and PRs welcome. For major changes, open an issue first.
 
 ---
 
-<p align="center"><b>THE ANGEL AI</b> · сделано с ❤️ для тех, у кого нет своего GPU</p>
+## 🙏 Credits
+
+- **[THE ANGEL AI](https://vk.com/theangel_lab)** — project author
+- **[Comfy-Org/ComfyUI](https://github.com/Comfy-Org/ComfyUI)** — the node-based UI
+- **[ltdrdata/ComfyUI-Manager](https://github.com/ltdrdata/ComfyUI-Manager)** — node manager
+- **[THE-ANGEL-AI/SageAttention-SM75-path](https://github.com/THE-ANGEL-AI/SageAttention-SM75-path)** — Turing attention fork
+- **[pollockjj/ComfyUI-MultiGPU](https://github.com/pollockjj/ComfyUI-MultiGPU)** — multi-GPU support
+- **[Cloudflare](https://www.cloudflare.com/)** — free tunnel for public access

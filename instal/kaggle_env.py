@@ -3,31 +3,32 @@
 """
 kaggle_env.py
 =================================================================
-ОБЩИЙ МОДУЛЬ (единый источник правды) для всех трёх шагов установки
-ComfyUI на Kaggle: instal_comfyui.py, instal_castom_node.py, start.py.
+SHARED MODULE (single source of truth) for all three installation steps
+of ComfyUI on Kaggle: instal_comfyui.py, instal_castom_node.py, start.py.
 
-Зачем он нужен
---------------
-Раньше логика «пути + установка uv + проверка venv + ремонт +x» была
-ПРОДУБЛИРОВАНА в трёх файлах с расхождениями. Из-за расхождений ломалось
-переживание рестарта сессии Kaggle. Теперь всё в одном месте.
+Why it's needed
+---------------
+Previously the "paths + uv install + venv check + +x repair" logic was
+DUPLICATED across three files with divergences. Those divergences broke
+session restart survival on Kaggle. Now everything is in one place.
 
-Главная идея надёжности: ВСЁ состояние uv лежит в /kaggle/working —
-единственном каталоге, который переживает рестарт сессии Kaggle:
+The key reliability idea: ALL uv state lives in /kaggle/working —
+the only directory that survives Kaggle session restarts:
 
-    UV_INSTALL_DIR        (сам бинарь uv)        -> /kaggle/working/bin
-    UV_PYTHON_INSTALL_DIR (базовый CPython)      -> /kaggle/working/uv-python
-    UV_CACHE_DIR          (колёса, в т.ч. torch) -> /kaggle/working/uv-cache
-    venv                                          -> /kaggle/working/venv
+    UV_INSTALL_DIR        (uv binary itself)      -> /kaggle/working/bin
+    UV_PYTHON_INSTALL_DIR (base CPython)          -> /kaggle/working/uv-python
+    UV_CACHE_DIR          (wheels, incl. torch)    -> /kaggle/working/uv-cache
+    venv                                            -> /kaggle/working/venv
 
-После рестарта Kaggle файлы остаются на месте, но теряют бит исполнения
-(+x). Поэтому единственный нужный ремонт — вернуть +x (repair_venv_perms),
-а НЕ переустанавливать uv/torch с нуля.
+After a Kaggle restart files remain in place but lose the execute bit
+(+x). So the only needed repair is restoring +x (repair_venv_perms),
+NOT reinstalling uv/torch from scratch.
 
-КЛЮЧЕВОЙ ФИКС: uv ставится через переменную окружения UV_INSTALL_DIR.
-Раньше использовался флаг `--bin-dir`, которого у инсталлятора uv НЕТ —
-он молча игнорировался, и uv уезжал в ~/.local/bin (НЕ персистентный),
-после рестарта пропадал, и приходилось всё переустанавливать.
+KEY FIX: uv is installed via the UV_INSTALL_DIR environment variable.
+Previously the `--bin-dir` flag was used, which the uv installer DOES
+NOT HAVE — it was silently ignored, and uv ended up in ~/.local/bin
+(NOT persistent), disappeared after restart, and everything had to be
+reinstalled.
 =================================================================
 """
 
@@ -36,7 +37,7 @@ import shutil
 import subprocess
 
 # ----------------------------------------------------------------------
-# Пути и параметры. Меняй здесь — подхватится во всех трёх скриптах.
+# Paths and parameters. Change here — picked up by all three scripts.
 # ----------------------------------------------------------------------
 HOME_DIR      = "/kaggle/working"
 VENV_DIR      = f"{HOME_DIR}/venv"
@@ -44,18 +45,18 @@ VENV_PYTHON   = f"{VENV_DIR}/bin/python"
 COMFY_DIR     = f"{HOME_DIR}/ComfyUI"
 NODES_DIR     = f"{COMFY_DIR}/custom_nodes"
 
-# Персистентные каталоги uv (все в /kaggle/working — переживают рестарт).
-UV_LOCAL_DIR  = f"{HOME_DIR}/bin"        # сам бинарь uv (UV_INSTALL_DIR)
-UV_PYTHON_DIR = f"{HOME_DIR}/uv-python"  # управляемый uv-ом базовый CPython
-UV_CACHE_DIR  = f"{HOME_DIR}/uv-cache"   # кэш колёс (torch не качается заново)
+# Persistent uv directories (all in /kaggle/working — survive restart).
+UV_LOCAL_DIR  = f"{HOME_DIR}/bin"        # uv binary itself (UV_INSTALL_DIR)
+UV_PYTHON_DIR = f"{HOME_DIR}/uv-python"  # uv-managed base CPython
+UV_CACHE_DIR  = f"{HOME_DIR}/uv-cache"   # wheel cache (torch won't re-download)
 
-PYTHON_VERSION = "3.12"                   # версия интерпретатора в venv
+PYTHON_VERSION = "3.12"                   # interpreter version in venv
 
 UV_INSTALL_URL = "https://astral.sh/uv/install.sh"
 
 
 # ----------------------------------------------------------------------
-# Единый стиль вывода (раньше дублировался в каждом файле).
+# Unified output style (previously duplicated in each file).
 # ----------------------------------------------------------------------
 def log(msg):   print(f"\n\033[92m✅ {msg}\033[0m", flush=True)
 def warn(msg):  print(f"\n\033[93m⚠️  {msg}\033[0m", flush=True)
@@ -63,7 +64,7 @@ def step(msg):  print(f"\n\033[96m=== {msg} ===\033[0m", flush=True)
 
 
 def run(cmd, check=True, **kwargs):
-    """Печатает и выполняет команду. По умолчанию падает при ошибке."""
+    """Prints and executes a command. Fails by default on error."""
     if isinstance(cmd, str):
         printable = cmd
         kwargs.setdefault("shell", True)
@@ -75,78 +76,80 @@ def run(cmd, check=True, **kwargs):
 
 
 # ----------------------------------------------------------------------
-# Настройка окружения uv. Лёгкая и безопасная при импорте — вызывается
-# автоматически в конце модуля, чтобы любой импортирующий скрипт сразу
-# получил правильный PATH и env-переменные uv.
+# uv environment setup. Lightweight and safe to import — called
+# automatically at module end so any importing script immediately
+# gets the correct PATH and uv env variables.
 # ----------------------------------------------------------------------
 def setup_env():
-    """Готовит окружение uv: персистентные каталоги + uv в PATH.
+    """Prepares uv environment: persistent directories + uv in PATH.
 
-    Без тяжёлой работы (ничего не качает) — можно звать сколько угодно раз.
+    No heavy work (downloads nothing) — safe to call any number of times.
     """
-    # Кэш uv и venv на Kaggle на разных ФС — hardlink не работает, uv ругается.
-    # copy-режим убирает предупреждение и лишние попытки слинковать.
+    # uv cache and venv on Kaggle are on different filesystems — hardlink
+    # doesn't work, uv complains. copy mode removes the warning and
+    # unnecessary linking attempts.
     os.environ.setdefault("UV_LINK_MODE", "copy")
-    # uv не задаёт интерактивных вопросов (в блокноте отвечать некому).
+    # uv shouldn't ask interactive questions (nobody to answer in a notebook).
     os.environ.setdefault("UV_NO_PROMPT", "1")
-    # Базовый CPython и кэш — в персистентные каталоги /kaggle/working.
+    # Base CPython and cache in persistent /kaggle/working directories.
     os.environ.setdefault("UV_PYTHON_INSTALL_DIR", UV_PYTHON_DIR)
     os.environ.setdefault("UV_CACHE_DIR", UV_CACHE_DIR)
-    # Брать только управляемый uv-ом python (не системный из ~, который пропадёт).
+    # Only use uv-managed python (not system one from ~ which will disappear).
     os.environ.setdefault("UV_PYTHON_PREFERENCE", "only-managed")
 
-    # Каталоги создаём заранее (терпимо к ошибкам — для локального импорта вне Kaggle).
+    # Create directories in advance (tolerant of errors for local import outside Kaggle).
     for d in (UV_LOCAL_DIR, UV_CACHE_DIR):
         try:
             os.makedirs(d, exist_ok=True)
         except OSError:
             pass
 
-    # Персистентный каталог с uv — в начало PATH (после рестарта мог выпасть).
-    # ИМЕННО этого не хватало в start.py: его `uv pip install` падал после рестарта.
+    # Persistent uv directory at the front of PATH (may have dropped after restart).
+    # THIS is what was missing in start.py: its `uv pip install` failed after restart.
     if os.path.isdir(UV_LOCAL_DIR) and UV_LOCAL_DIR not in os.environ.get("PATH", "").split(os.pathsep):
         os.environ["PATH"] = UV_LOCAL_DIR + os.pathsep + os.environ.get("PATH", "")
 
 
 # ----------------------------------------------------------------------
-# Установка uv. Идемпотентна: ставит, только если его нет, и чинит +x.
+# uv installation. Idempotent: installs only if missing, and fixes +x.
 # ----------------------------------------------------------------------
 def ensure_uv():
-    """Гарантирует наличие рабочего uv в персистентном каталоге.
+    """Guarantees a working uv in the persistent directory.
 
-    Используем standalone-инсталлятор (curl), а НЕ pip — потому что:
-      1) системный Python на Kaggle «externally managed» (PEP 668), pip падает;
-      2) pip ставит uv в ~/.local/bin — НЕ персистентный, после рестарта пропадёт.
+    We use the standalone installer (curl), NOT pip — because:
+      1) system Python on Kaggle is "externally managed" (PEP 668), pip fails;
+      2) pip installs uv to ~/.local/bin — NOT persistent, disappears after restart.
 
-    Инсталлятор кладёт бинарь в UV_INSTALL_DIR=/kaggle/working/bin (персистентный).
+    The installer places the binary in UV_INSTALL_DIR=/kaggle/working/bin (persistent).
     """
     setup_env()
 
-    # Уже в PATH и работает — выходим.
+    # Already in PATH and working — exit.
     if shutil.which("uv"):
-        log("uv уже установлен (пропуск)")
+        log("uv already installed (skipping)")
         return
 
-    # Бинарь есть на диске, но потерял +x после рестарта Kaggle — чиним дёшево.
+    # Binary exists on disk but lost +x after Kaggle restart — cheap fix.
     uv_bin = os.path.join(UV_LOCAL_DIR, "uv")
     if os.path.exists(uv_bin):
-        warn("uv найден, но без бита +x (рестарт Kaggle снял) — возвращаю +x")
+        warn("uv found but without +x bit (Kaggle restart removed it) — restoring +x")
         try:
             os.chmod(uv_bin, 0o755)
         except OSError:
             pass
         os.environ["PATH"] = UV_LOCAL_DIR + os.pathsep + os.environ.get("PATH", "")
         if shutil.which("uv"):
-            log("uv починен возвратом +x")
+            log("uv repaired by restoring +x")
             return
 
-    step("Установка uv (standalone → /kaggle/working/bin)")
+    step("Installing uv (standalone → /kaggle/working/bin)")
     os.makedirs(UV_LOCAL_DIR, exist_ok=True)
     installer = os.path.join(UV_LOCAL_DIR, "uv-install.sh")
     run(["curl", "-LsSf", UV_INSTALL_URL, "-o", installer])
-    # КЛЮЧЕВОЙ ФИКС: каталог задаётся переменной UV_INSTALL_DIR, а НЕ флагом
-    # --bin-dir (которого у инсталлятора нет). UV_NO_MODIFY_PATH=1 — не трогать
-    # профили шелла (нам это не нужно, PATH правим сами через setup_env).
+    # KEY FIX: directory is set via UV_INSTALL_DIR env variable, NOT the
+    # --bin-dir flag (which the installer DOESN'T HAVE). UV_NO_MODIFY_PATH=1
+    # — don't touch shell profiles (we don't need that, we fix PATH ourselves
+    # via setup_env).
     env = dict(os.environ)
     env["UV_INSTALL_DIR"] = UV_LOCAL_DIR
     env["UV_NO_MODIFY_PATH"] = "1"
@@ -154,19 +157,19 @@ def ensure_uv():
 
     os.environ["PATH"] = UV_LOCAL_DIR + os.pathsep + os.environ.get("PATH", "")
     if not shutil.which("uv"):
-        raise RuntimeError("Не удалось установить uv — проверь лог выше")
-    log("uv установлен в персистентный каталог /kaggle/working/bin")
+        raise RuntimeError("Failed to install uv — check the log above")
+    log("uv installed to persistent directory /kaggle/working/bin")
 
 
 # ----------------------------------------------------------------------
-# Проверка и ремонт venv.
+# venv check and repair.
 # ----------------------------------------------------------------------
 def venv_python_ok():
-    """venv считается рабочим, только если его python РЕАЛЬНО запускается.
+    """venv is considered working only if its python ACTUALLY launches.
 
-    /kaggle/working/venv переживает рестарт сессии, а вот бит +x на
-    интерпретаторе и базовом CPython слетает → симлинк цел, но не исполняется.
-    Поэтому проверяем именно запуском, а не os.path.exists.
+    /kaggle/working/venv survives session restarts, but the +x bit on
+    the interpreter and base CPython gets reset → symlink is intact but
+    not executable. So we check by actually running, not os.path.exists.
     """
     if not os.path.exists(VENV_PYTHON):
         return False
@@ -177,7 +180,7 @@ def venv_python_ok():
     except subprocess.TimeoutExpired:
         return False
     except (subprocess.SubprocessError, OSError) as exc:
-        # Ловим stderr, если бинарь есть, но падает (libc, kernel, ...)
+        # Catch stderr if binary exists but fails (libc, kernel, ...)
         try:
             err = subprocess.run(
                 [VENV_PYTHON, "-c", "pass"],
@@ -186,33 +189,33 @@ def venv_python_ok():
             detail = (err.stderr or b"").decode("utf-8", errors="replace")[:500]
         except Exception as e2:
             detail = str(e2)[:500]
-        warn(f"venv python есть, но НЕ запускается: {detail}")
+        warn(f"venv python exists but DOES NOT LAUNCH: {detail}")
         return False
 
 
 def diagnose_venv():
-    """Подробно объясняет, ПОЧЕМУ venv не запускается (для лога после рестарта)."""
+    """Explains in detail WHY venv won't launch (for the log after restart)."""
     p = VENV_PYTHON
     if not os.path.lexists(p):
-        return "venv/bin/python ОТСУТСТВУЕТ (папка venv не создана или удалена)"
+        return "venv/bin/python DOES NOT EXIST (venv folder not created or deleted)"
     if os.path.islink(p):
         target = os.path.realpath(p)
         if not os.path.exists(target):
-            return (f"venv/bin/python — БИТЫЙ СИМЛИНК на {os.readlink(p)} "
-                    f"(базовый CPython не пережил рестарт сессии)")
+            return (f"venv/bin/python is a BROKEN SYMLINK to {os.readlink(p)} "
+                    f"(base CPython didn't survive session restart)")
         if not os.access(target, os.X_OK):
-            return (f"базовый CPython есть ({target}), но БЕЗ бита +x "
-                    f"(рестарт Kaggle снял право исполнения)")
+            return (f"base CPython exists ({target}) but WITHOUT +x bit "
+                    f"(Kaggle restart removed execute permission)")
     elif not os.access(p, os.X_OK):
-        return "venv/bin/python есть, но БЕЗ бита +x (рестарт снял исполнение)"
-    return "python на месте и исполняем, но падает при запуске (см. ошибку ниже)"
+        return "venv/bin/python exists but WITHOUT +x bit (restart removed execute)"
+    return "python is in place and executable but fails on launch (see error below)"
 
 
 def repair_venv_perms():
-    """Дёшево чинит самую частую поломку после рестарта: слетевший бит +x.
+    """Cheaply fixes the most common post-restart failure: lost +x bit.
 
-    Возвращает True, если после ремонта venv заработал. Не пересоздаёт venv и
-    не трогает torch — экономит минуты на каждом старте.
+    Returns True if venv works after repair. Does not recreate venv and
+    doesn't touch torch — saves minutes on every startup.
     """
     candidates = []
     if os.path.lexists(VENV_PYTHON):
@@ -220,11 +223,11 @@ def repair_venv_perms():
         real = os.path.realpath(VENV_PYTHON)
         if real != VENV_PYTHON:
             candidates.append(real)
-    # Бинарь uv в персистентном каталоге — тоже теряет +x после рестарта.
+    # uv binary in persistent directory also loses +x after restart.
     uv_bin = os.path.join(UV_LOCAL_DIR, "uv")
     if os.path.exists(uv_bin):
         candidates.append(uv_bin)
-    # Все исполняемые python в персистентном каталоге uv-CPython.
+    # All executable python in persistent uv-CPython directory.
     if os.path.isdir(UV_PYTHON_DIR):
         for root, _dirs, files in os.walk(UV_PYTHON_DIR):
             for f in files:
@@ -239,41 +242,41 @@ def repair_venv_perms():
         except OSError:
             pass
     if fixed:
-        warn("Вернул бит +x интерпретатору venv/uv-python (после рестарта слетал)")
+        warn("Restored +x bit to venv/uv-python interpreter (lost after restart)")
     return venv_python_ok()
 
 
 def repair_base_python_via_uv():
-    """Если базовый CPython битый (libc/kernel), удаляет старый и ставит свежий.
+    """If base CPython is broken (libc/kernel), removes old and installs fresh.
 
-    ВАЖНО: эта функция НЕ чинит venv — старый venv ссылается на старый
-    бинарник (другой путь). Она только готовит РАБОЧИЙ базовый CPython,
-    чтобы следующий `uv venv --clear` создал venv с новым CPython.
-    Пакеты переставятся из uv-кэша (быстро, torch уже скачан).
+    IMPORTANT: this function does NOT fix venv — old venv points to old
+    binary (different path). It only prepares a WORKING base CPython
+    so the next `uv venv --clear` creates a venv with new CPython.
+    Packages will be reinstalled from uv cache (fast, torch already downloaded).
 
-    Возвращает:
-      True  — базовый CPython переустановлен, можно создавать venv заново;
-      False — uv не смог установить CPython (надо переустановить uv).
+    Returns:
+      True  — base CPython reinstalled, ready to recreate venv;
+      False — uv couldn't install CPython (need to reinstall uv).
     """
-    # 1. Удаляем старый CPython — uv поймёт, что надо ставить свежий
-    #    (без этого uv говорит "already installed" и пропускает установку).
+    # 1. Remove old CPython — uv will know it needs to install fresh
+    #    (without this uv says "already installed" and skips).
     if os.path.isdir(UV_PYTHON_DIR):
-        warn(f"Удаляю старый базовый CPython: {UV_PYTHON_DIR}")
+        warn(f"Removing old base CPython: {UV_PYTHON_DIR}")
         shutil.rmtree(UV_PYTHON_DIR, ignore_errors=True)
 
-    # 2. Убеждаемся, что uv в PATH (после restart мог пропасть).
+    # 2. Make sure uv is in PATH (may have disappeared after restart).
     ensure_uv()
 
-    # 3. Ставим свежий CPython для текущего ядра Kaggle.
-    warn("Устанавливаю свежий базовый CPython через uv python install...")
+    # 3. Install fresh CPython for current Kaggle kernel.
+    warn("Installing fresh base CPython via uv python install...")
     result = run(["uv", "python", "install", PYTHON_VERSION], check=False)
     if result.returncode != 0:
-        warn(f"uv python install не удался (код {result.returncode}) — "
-             f"нужна полная переустановка")
+        warn(f"uv python install failed (code {result.returncode}) — "
+             f"full reinstall needed")
         return False
 
-    # 4. Проверяем, что свежий python работает (на всякий случай).
-    #    Ищем любой python3.12 в UV_PYTHON_DIR (uv мог установить новый).
+    # 4. Check that fresh python works (just in case).
+    #    Look for any python3.12 in UV_PYTHON_DIR (uv may have installed new one).
     fresh_python = None
     if os.path.isdir(UV_PYTHON_DIR):
         for root, _dirs, files in os.walk(UV_PYTHON_DIR):
@@ -291,63 +294,63 @@ def repair_base_python_via_uv():
                 break
 
     if fresh_python:
-        warn(f"Свежий CPython работает: {fresh_python}. "
-             f"Теперь нужен новый venv (будет создан автоматически).")
+        warn(f"Fresh CPython works: {fresh_python}. "
+             f"Now a new venv is needed (will be created automatically).")
         return True
 
-    warn("Не удалось найти работающий CPython после uv python install")
+    warn("Could not find working CPython after uv python install")
     return False
 
 
 def ensure_venv():
-    """Гарантирует рабочий venv. Идемпотентно и максимально дёшево.
+    """Guarantees a working venv. Idempotent and maximally cheap.
 
-    Логика по возрастанию стоимости:
-      1) venv уже рабочий                          -> ничего не делаем;
-      2) папка есть, но битый -> ремонт +x          -> torch не трогаем;
-      3) +x не помог -> переустановка CPython через uv
-         (подготовка к пересозданию venv, пакеты из uv-кэша);
-      4) всё плохо / venv нет -> пересоздаём venv   -> uv venv (+seed).
+    Logic by increasing cost:
+      1) venv already works                       → do nothing;
+      2) folder exists but broken → fix +x        → don't touch torch;
+      3) +x didn't help → reinstall CPython via uv
+         (prepare for venv recreation, packages from uv cache);
+      4) everything is bad / no venv → recreate    → uv venv (+seed).
 
     Returns:
-      True  — venv уже работал (ничего не делали);
-      False — venv был починен/пересоздан (torch и пакеты могли пропасть).
+      True  — venv was already working (did nothing);
+      False — venv was repaired/recreated (torch and packages may be gone).
     """
-    step("Проверка/создание venv")
+    step("Checking/creating venv")
     if venv_python_ok():
-        log(f"venv уже существует и рабочий: {VENV_DIR} (пересоздание пропущено)")
+        log(f"venv already exists and works: {VENV_DIR} (recreation skipped)")
         return True
 
     if os.path.exists(VENV_DIR):
-        warn(f"venv найден, но нерабочий. Причина: {diagnose_venv()}")
-        # Этап 2: дёшево чиним +x (частая поломка после рестарта Kaggle).
+        warn(f"venv found but not working. Reason: {diagnose_venv()}")
+        # Stage 2: cheaply fix +x (common failure after Kaggle restart).
         if repair_venv_perms():
-            log(f"venv починен возвратом +x — пересоздание и переустановка "
-                f"torch НЕ нужны: {VENV_DIR}")
+            log(f"venv repaired by restoring +x — recreation and torch "
+                f"reinstall NOT needed: {VENV_DIR}")
             return False
-        # Этап 3: +x не помог — возможно, обновилось ядро Kaggle и старый
-        # CPython несовместим с libc. Удаляем его и ставим свежий.
-        warn(f"+x не помог — пробую переустановить базовый CPython: {VENV_DIR}")
+        # Stage 3: +x didn't help — maybe Kaggle updated the kernel and old
+        # CPython is incompatible with libc. Remove it and install fresh.
+        warn(f"+x didn't help — trying to reinstall base CPython: {VENV_DIR}")
         repair_base_python_via_uv()
-        # NB: repair_base_python_via_uv НЕ чинит venv (старый symlink
-        # указывает на удалённый CPython). Он только готовит свежий CPython
-        # для следующего шага. Продолжаем с пересозданием venv.
+        # NB: repair_base_python_via_uv does NOT fix venv (old symlink
+        # points to deleted CPython). It only prepares fresh CPython
+        # for the next step. Continue with venv recreation.
 
-    ensure_uv()  # для пересоздания нужен uv
-    # --seed кладёт pip/setuptools внутрь venv — некоторым нодам это нужно.
-    # --clear молча перезаписывает существующую папку (без вопроса «очистить?»).
+    ensure_uv()  # need uv for recreation
+    # --seed puts pip/setuptools inside venv — some nodes need this.
+    # --quietly overwrites existing folder (no "clear?" prompt).
     run(["uv", "venv", VENV_DIR, "--python", PYTHON_VERSION, "--seed", "--clear"])
     if not venv_python_ok():
-        raise RuntimeError("venv создан, но python не запускается — смотри лог выше")
-    log(f"venv создан на Python {PYTHON_VERSION}: {VENV_DIR}")
+        raise RuntimeError("venv created but python won't launch — see log above")
+    log(f"venv created on Python {PYTHON_VERSION}: {VENV_DIR}")
     return False
 
 
 def torch_cuda_ok():
-    """Проверяет, что torch установлен в venv и видит CUDA.
+    """Checks that torch is installed in venv and sees CUDA.
 
-    Используется после пересоздания venv или после прерванной установки,
-    чтобы не пропустить переустановку, если torch битый/отсутствует.
+    Used after recreating venv or after an interrupted install,
+    to not miss reinstalling if torch is broken/missing.
     """
     if not venv_python_ok():
         return False
@@ -361,26 +364,26 @@ def torch_cuda_ok():
 
 
 def install_python():
-    """Гарантирует рабочий Python: uv в PATH + venv (создан/починен/пересоздан).
+    """Guarantees a working Python: uv in PATH + venv (created/repaired/recreated).
 
-    Единая точка входа для всех трёх скриптов (instal_comfyui.py,
-    instal_castom_node.py, start.py). Внутри вызывает:
-       1. ensure_uv()   — ставит uv-бинарь (если нет / битый),
-       2. ensure_venv() — проверяет venv, чинит +x, переустанавливает
-                          CPython, при необходимости пересоздаёт venv.
+    Single entry point for all three scripts (instal_comfyui.py,
+    instal_castom_node.py, start.py). Internally calls:
+       1. ensure_uv()   — installs uv binary (if missing / broken),
+       2. ensure_venv() — checks venv, fixes +x, reinstalls CPython,
+                          recreates venv if needed.
 
-    Идемпотентна и максимально дёшева: если всё уже работает — ничего не делает.
+    Idempotent and maximally cheap: if everything already works — does nothing.
 
     Returns:
-      True  — все компоненты уже работали (ничего не делали);
-      False — были выполнены ремонт/пересоздание (пакеты могли пропасть).
+      True  — all components were already working (did nothing);
+      False — repair/recreation was performed (packages may be gone).
     """
     ensure_uv()
     return ensure_venv()
 
 
 def uv_pip_install(*packages, extra_args=None):
-    """uv pip install в наш venv (быстрее обычного pip)."""
+    """uv pip install into our venv (faster than regular pip)."""
     cmd = ["uv", "pip", "install", "--python", VENV_PYTHON]
     if extra_args:
         cmd += list(extra_args)
@@ -388,6 +391,6 @@ def uv_pip_install(*packages, extra_args=None):
     run(cmd)
 
 
-# Настраиваем окружение сразу при импорте — любой скрипт, импортировавший
-# модуль, получает корректный PATH и env-переменные uv без лишних вызовов.
+# Set up environment on import — any script that imported the module
+# gets correct PATH and uv env variables without extra calls.
 setup_env()

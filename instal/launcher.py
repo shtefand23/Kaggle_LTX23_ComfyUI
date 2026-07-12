@@ -3,19 +3,19 @@
 """
 launcher.py
 =================================================================
-Главный оркестратор ComfyUI на Kaggle.
+Main ComfyUI orchestrator on Kaggle.
 
-Содержит ComfyLauncher — класс, управляющий жизненным циклом:
-  1. Проверка и ремонт окружения (venv, torch, ноды)
-  2. Cloudflared туннель
-  3. Запуск ComfyUI + ожидание порта
-  4. Keep-alive (anti-sleep) + HTML-панель
+Contains ComfyLauncher — a class managing the lifecycle:
+  1. Environment check and repair (venv, torch, nodes)
+  2. Cloudflared tunnel
+  3. ComfyUI launch + port wait
+  4. Keep-alive (anti-sleep) + HTML panel
 
-Пути — ТОЛЬКО из kaggle_env (единый источник правды).
-UI и логи — через LogManager (logging_ui.py).
-Виджеты: widgets.HTML для лога, статуса, heartbeat, URL.
-Кнопки: widgets.Button для остановки и перезапуска.
-Остановка — кнопка «🛑 Остановить» в панели.
+Paths — ONLY from kaggle_env (single source of truth).
+UI and logs — via LogManager (logging_ui.py).
+Widgets: widgets.HTML for log, status, heartbeat, URL.
+Buttons: widgets.Button for stop and restart.
+Stop — the "🛑 Stop" button in the panel.
 =================================================================
 """
 
@@ -29,37 +29,37 @@ import traceback
 from datetime import datetime
 from threading import Event, Thread
 
-# Общий модуль — единый источник путей
+# Shared module — single source of paths
 import kaggle_env as ke
 from kaggle_env import (
     HOME_DIR, COMFY_DIR, VENV_PYTHON,
 )
 
-# UI + логи
+# UI + logs
 from logging_ui import LogManager
 
-# SageAttention-SM75 (Turing T4) — сборка + custom node
+# SageAttention-SM75 (Turing T4) — build + custom node
 import sage_installer
 
 
 
-# Путь к скриптам установщиков
+# Path to installer scripts
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 INSTALLER      = os.path.join(_THIS_DIR, "instal_comfyui.py")
 NODE_INSTALLER = os.path.join(_THIS_DIR, "instal_castom_node.py")
 
-# Таймауты
+# Timeouts
 PORT            = 8188
-STARTUP_TIMEOUT = 240   # сек на запуск ComfyUI
-URL_TIMEOUT     = 90    # сек на получение ссылки Cloudflare
+STARTUP_TIMEOUT = 240   # seconds for ComfyUI launch
+URL_TIMEOUT     = 90    # seconds to get Cloudflare link
 CLOUDFLARED     = f"{HOME_DIR}/cloudflared"
 
-# Авто-обновление нод
+# Auto-update nodes
 AUTO_UPDATE_NODES = True
 
 
 class ComfyLauncher:
-    """Держит процессы и весь жизненный цикл запуска/остановки."""
+    """Holds processes and the entire launch/stop lifecycle."""
 
     def __init__(self):
         self.comfy_proc = None
@@ -68,18 +68,18 @@ class ComfyLauncher:
         self.stopped = False
         self._starting = False
         self.sage_ok = False
-        # UI + логи
+        # UI + logs
         self.logger = LogManager()
         self.logger.on_stop_callback = self._on_stop
         self.logger.on_restart_callback = self._on_restart
 
     # ------------------------------------------------------------------
-    # Helpers консольного логирования
+    # Console logging helpers
     # ------------------------------------------------------------------
 
     def _log_step(self, name, status=None):
-        """Отмечает начало шага: разделитель + таймер + статус.
-        Возвращает time.time() для замера длительности."""
+        """Marks the start of a step: separator + timer + status.
+        Returns time.time() for duration measurement."""
         ts = datetime.now().strftime("%H:%M:%S")
         self.logger.print(f"\n{'='*60}")
         self.logger.print(f"  [{ts}] {name}")
@@ -88,16 +88,16 @@ class ComfyLauncher:
             self.logger.set_status(status, "#f39c12")
         return time.time()
 
-    def _log_elapsed(self, start, msg="✓ Шаг завершён"):
-        """Логирует время, прошедшее с start."""
+    def _log_elapsed(self, start, msg="✓ Step complete"):
+        """Logs time elapsed since start."""
         elapsed = time.time() - start
-        self.logger.print(f"[{msg}] ({elapsed:.1f}с)")
+        self.logger.print(f"[{msg}] ({elapsed:.1f}s)")
 
     # ------------------------------------------------------------------
-    # Публичная точка входа
+    # Public entry point
     # ------------------------------------------------------------------
     def launch(self):
-        # Панель рисуется в __init__ LogManager через display()
+        # Panel is drawn in LogManager.__init__ via display()
         Thread(target=self.logger._heartbeat_loop, daemon=True).start()
         Thread(target=self.logger._stdout_keep_alive, daemon=True).start()
         Thread(target=self._startup, daemon=True).start()
@@ -105,7 +105,7 @@ class ComfyLauncher:
         self._keep_alive()
 
     # ------------------------------------------------------------------
-    # Запуск (в фоновом потоке)
+    # Startup (in background thread)
     # ------------------------------------------------------------------
     def _startup(self):
         self._starting = True
@@ -119,32 +119,32 @@ class ComfyLauncher:
             self._check_git_updates()
             self._check_files()
             self._ensure_cloudflared()
-            # SageAttention-SM75 пропускаем — он НЕ работает с GGUF моделями
-            # (llama.cpp бэкенд, не диффузионный attention).
-            # Скорость генерации — через настройки ComfyUI/GGUF ноды.
+            # SageAttention-SM75 is skipped — it DOES NOT work with GGUF models
+            # (llama.cpp backend, not diffusion attention).
+            # Generation speed is through ComfyUI/GGUF node settings.
             self._start_comfy()
             self._wait_for_port()
             self._start_tunnel()
             total = time.time() - _t_startup
             self.logger.print(f"\n{'='*60}")
-            self.logger.print(f"  ✅ Полный запуск за {total:.1f}с")
+            self.logger.print(f"  ✅ Full startup in {total:.1f}s")
             self.logger.print(f"{'='*60}")
         except Exception as e:
             self._kill_processes()
-            self.logger.set_status(f"❌ Ошибка запуска: {e}", "#e74c3c")
+            self.logger.set_status(f"❌ Startup error: {e}", "#e74c3c")
             elapsed = time.time() - _t_startup
             self.logger.print(f"\n{'='*60}")
-            self.logger.print(f"  ❌ Ошибка на {elapsed:.0f}с: {e}")
+            self.logger.print(f"  ❌ Error at {elapsed:.0f}s: {e}")
             self.logger.print(f"{'='*60}")
             self.logger.print(f"[ERROR] {e}\n{traceback.format_exc()}")
         finally:
             self._starting = False
 
     # ------------------------------------------------------------------
-    # 1. Убиваем старые процессы и чистим блокировки
+    # 1. Kill old processes and clean up locks
     # ------------------------------------------------------------------
     def _cleanup_old(self):
-        t0 = self._log_step("Шаг 1/6: Очистка старых процессов и блокировок")
+        t0 = self._log_step("Step 1/6: Cleaning up old processes and locks")
         total_killed = 0
         for pat in ("main.py", "comfyui", "cloudflared"):
             try:
@@ -153,16 +153,16 @@ class ComfyLauncher:
                     capture_output=True, text=True)
                 if pgrep.returncode == 0 and pgrep.stdout.strip():
                     pids = pgrep.stdout.strip().splitlines()
-                    self.logger.print(f"  → {pat}: найдено PID: {', '.join(pids)}")
+                    self.logger.print(f"  → {pat}: found PIDs: {', '.join(pids)}")
                     total_killed += len(pids)
                 subprocess.run(["pkill", "-9", "-f", pat],
                                capture_output=True)
             except OSError:
                 pass
         if total_killed == 0:
-            self.logger.print("  → Старых процессов не найдено")
+            self.logger.print("  → No old processes found")
         else:
-            self.logger.print(f"  → Убито процессов: {total_killed}")
+            self.logger.print(f"  → Killed {total_killed} processes")
         time.sleep(2)
         removed = 0
         for f in (f"{COMFY_DIR}/user/comfyui.db",
@@ -170,19 +170,19 @@ class ComfyLauncher:
             try:
                 if os.path.exists(f):
                     os.remove(f)
-                    self.logger.print(f"  → Удалён файл: {os.path.basename(f)}")
+                    self.logger.print(f"  → Removed file: {os.path.basename(f)}")
                     removed += 1
             except OSError as e:
-                self.logger.print(f"  → Не удалён {os.path.basename(f)}: {e}")
+                self.logger.print(f"  → Could not remove {os.path.basename(f)}: {e}")
         if removed == 0:
-            self.logger.print("  → Файлов блокировок нет")
+            self.logger.print("  → No lock files found")
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 1b. Проверка обновлений из git-репозитория
+    # 1b. Check for git repo updates
     # ------------------------------------------------------------------
     def _check_git_updates(self):
-        t0 = self._log_step("Шаг 2/6: Проверка обновлений скриптов (git)")
+        t0 = self._log_step("Step 2/6: Checking for script updates (git)")
 
         try:
             result = subprocess.run(
@@ -190,22 +190,22 @@ class ComfyLauncher:
                 capture_output=True, text=True, timeout=10, check=True)
             repo_root = result.stdout.strip()
         except (subprocess.CalledProcessError, OSError, subprocess.TimeoutExpired):
-            self.logger.print("  → Это не git-клон — пропускаю")
+            self.logger.print("  → Not a git clone — skipping")
             self._log_elapsed(t0)
             return
 
         try:
-            # Текущая позиция
+            # Current position
             branch = subprocess.run(["git", "-C", repo_root, "rev-parse",
                                      "--abbrev-ref", "HEAD"],
                                     capture_output=True, text=True, timeout=5)
             commit = subprocess.run(["git", "-C", repo_root, "rev-parse",
                                      "--short", "HEAD"],
                                     capture_output=True, text=True, timeout=5)
-            self.logger.print(f"  → Ветка: {branch.stdout.strip()}")
-            self.logger.print(f"  → Коммит: {commit.stdout.strip()}")
+            self.logger.print(f"  → Branch: {branch.stdout.strip()}")
+            self.logger.print(f"  → Commit: {commit.stdout.strip()}")
 
-            # GIT_TERMINAL_PROMPT=0 — не ждать интерактивного ввода
+            # GIT_TERMINAL_PROMPT=0 — don't wait for interactive input
             fetch_env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
             self.logger.print("  → Fetch...")
             fetch = subprocess.run(
@@ -223,13 +223,13 @@ class ComfyLauncher:
             behind = "behind" in (status.stdout + status.stderr)
 
             if not behind:
-                self.logger.print("  → Актуально, обновлений нет")
-                self.logger.set_status("✅ Скрипты обновлены", "#27ae60")
+                self.logger.print("  → Up to date, no updates found")
+                self.logger.set_status("✅ Scripts updated", "#27ae60")
                 self._log_elapsed(t0)
                 return
 
-            self.logger.print("  → Найдены новые коммиты — git pull...")
-            self.logger.set_status("⚙️ Скачиваю обновления...", "#f39c12")
+            self.logger.print("  → Found new commits — git pull...")
+            self.logger.set_status("⚙️ Downloading updates...", "#f39c12")
             pull = subprocess.run(
                 ["git", "-C", repo_root, "pull", "--ff-only"],
                 capture_output=True, text=True, timeout=30)
@@ -242,76 +242,76 @@ class ComfyLauncher:
                 ["git", "-C", repo_root, "log", "--oneline", f"{commit.stdout.strip()}..HEAD"],
                 capture_output=True, text=True, timeout=5)
             n = len([l for l in log.stdout.splitlines() if l.strip()])
-            self.logger.print(f"  → Загружено {n} новых коммитов")
-            self.logger.set_status("✅ Скрипты обновлены", "#27ae60")
+            self.logger.print(f"  → Downloaded {n} new commits")
+            self.logger.set_status("✅ Scripts updated", "#27ae60")
         except subprocess.TimeoutExpired:
-            self.logger.print("  → Таймаут git-операции — пропускаю")
+            self.logger.print("  → Git operation timeout — skipping")
         except Exception as e:
-            self.logger.print(f"  → Ошибка: {e}")
+            self.logger.print(f"  → Error: {e}")
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 2. Проверка файлов и окружения
+    # 2. Check files and environment
     # ------------------------------------------------------------------
     def _check_files(self):
-        t0 = self._log_step("Шаг 3/6: Проверка файлов и окружения")
+        t0 = self._log_step("Step 3/6: Checking files and environment")
 
         # --- venv ---
-        self.logger.print("  ── Проверка Python-окружения ──")
+        self.logger.print("  ── Checking Python environment ──")
         if not ke.venv_python_ok():
-            self.logger.print("  ❌ venv битый — запускаю install_python()")
+            self.logger.print("  ❌ venv broken — running install_python()")
             try:
                 was_ok = ke.install_python()
             except Exception as exc:
-                self.logger.print(f"  ❌ install_python() упал: {exc}")
+                self.logger.print(f"  ❌ install_python() failed: {exc}")
                 raise RuntimeError(
-                    "Ошибка при установке Python-окружения") from exc
+                    "Error during Python environment installation") from exc
             if not ke.venv_python_ok():
-                raise RuntimeError("venv не заработал — смотри лог выше")
-            self.logger.print("  ✅ venv восстановлен")
+                raise RuntimeError("venv didn't start working — see log above")
+            self.logger.print("  ✅ venv restored")
             if not was_ok:
-                self.logger.print("  → venv пересоздан — устанавливаю torch")
+                self.logger.print("  → venv recreated — installing torch")
                 self.logger.stream_script(INSTALLER, "INSTALL",
-                    "Запусти вручную: !python instal/instal_comfyui.py")
-                self.logger.print("  → Переустанавливаю зависимости кастомных нод")
+                    "Run manually: !python instal/instal_comfyui.py")
+                self.logger.print("  → Reinstalling custom node dependencies")
                 self.logger.stream_script(NODE_INSTALLER, "NODES",
-                    "Запусти вручную: !python instal/instal_castom_node.py")
+                    "Run manually: !python instal/instal_castom_node.py")
         else:
-            self.logger.print("  ✅ venv в порядке")
+            self.logger.print("  ✅ venv OK")
 
         # --- ComfyUI ---
-        self.logger.print("  ── Проверка ComfyUI ──")
+        self.logger.print("  ── Checking ComfyUI ──")
         if not os.path.exists(f"{COMFY_DIR}/main.py"):
-            self.logger.print("  ❌ ComfyUI не найден — авто-установка")
+            self.logger.print("  ❌ ComfyUI not found — auto-installing")
             self.logger.stream_script(INSTALLER, "INSTALL",
-                "Запусти вручную: !python instal/instal_comfyui.py")
-            self.logger.print("  ✅ ComfyUI установлен")
+                "Run manually: !python instal/instal_comfyui.py")
+            self.logger.print("  ✅ ComfyUI installed")
         else:
-            self.logger.print("  ✅ ComfyUI на месте")
+            self.logger.print("  ✅ ComfyUI in place")
 
         # --- torch / CUDA ---
-        self.logger.print("  ── Проверка torch/CUDA ──")
+        self.logger.print("  ── Checking torch/CUDA ──")
         if not ke.torch_cuda_ok():
-            self.logger.print("  ❌ torch не видит CUDA — переустановка")
+            self.logger.print("  ❌ torch doesn't see CUDA — reinstalling")
             self.logger.stream_script(INSTALLER, "INSTALL",
-                "Запусти вручную: !python instal/instal_comfyui.py")
-            self.logger.print("  → Переустанавливаю зависимости нод")
+                "Run manually: !python instal/instal_comfyui.py")
+            self.logger.print("  → Reinstalling node dependencies")
             self.logger.stream_script(NODE_INSTALLER, "NODES",
-                "Запусти вручную: !python instal/instal_castom_node.py")
+                "Run manually: !python instal/instal_castom_node.py")
         else:
-            self.logger.print("  ✅ torch/CUDA в порядке")
+            self.logger.print("  ✅ torch/CUDA OK")
 
-        # --- Кастомные ноды (могут притянуть pynvml в requirements.txt) ---
+        # --- Custom nodes (may pull pynvml via requirements.txt) ---
         self._check_nodes()
-        # --- Симлинки на модели (всегда, независимо от состояния нод) ---
+        # --- Model symlinks (always, regardless of node state) ---
         self._ensure_symlinks()
-        # --- nvidia-ml-py (ФИНАЛ после всех установок — удаляем pynvml-редиректор) ---
+        # --- nvidia-ml-py (FINAL after all installs — remove pynvml redirect) ---
         self._ensure_nvidia_ml_py()
         self._log_elapsed(t0)
 
-    # --- 2b. проверка и авто-обновление кастомных нод ---
+    # --- 2b. check and auto-update custom nodes ---
     def _load_node_names(self):
-        """Имена нод из instal_castom_node.py (единый источник правды)."""
+        """Node names from instal_castom_node.py (single source of truth)."""
         try:
             import importlib.util
             spec = importlib.util.spec_from_file_location(
@@ -320,17 +320,17 @@ class ComfyLauncher:
             spec.loader.exec_module(mod)
             return list(getattr(mod, "CUSTOM_NODES", {}).keys())
         except Exception as e:
-            self.logger.print(f"[!] Не смог прочитать список нод ({e}) — пропускаю проверку")
+            self.logger.print(f"[!] Could not read node list ({e}) — skipping check")
             return None
 
     def _update_node(self, name, path):
-        """git pull одной ноды + переустановка ее requirements.txt в venv.
+        """git pull one node + reinstall its requirements.txt in venv.
 
-        Всегда переустанавливает requirements.txt после pull — `uv pip install`
-        идемпотентен и быстр при Already up to date. Это гарантирует, что
-        зависимости нод не пропадут после пересоздания venv.
+        Always reinstalls requirements.txt after pull — `uv pip install`
+        is idempotent and fast on Already up to date. This guarantees
+        node dependencies aren't lost after venv recreation.
         """
-        # Принудительная смена remote URL, если форк переехал
+        # Force remote URL change if fork moved
         try:
             import importlib.util
             spec = importlib.util.spec_from_file_location(
@@ -345,25 +345,25 @@ class ComfyLauncher:
                     capture_output=True, text=True).stdout.strip()
                 if cur != expected_url:
                     self.logger.print(
-                        f"[NODES] {name}: смена remote URL: {cur} → {expected_url}")
+                        f"[NODES] {name}: remote URL changed: {cur} → {expected_url}")
                     subprocess.run(
                         ["git", "-C", path, "remote", "set-url", "origin", expected_url],
                         capture_output=True, text=True)
         except Exception as e:
-            self.logger.print(f"[NODES] {name}: не удалось проверить remote URL ({e})")
+            self.logger.print(f"[NODES] {name}: could not check remote URL ({e})")
 
         res = subprocess.run(
             ["git", "-C", path, "pull", "--ff-only"],
             capture_output=True, text=True)
         out = (res.stdout + res.stderr).strip()
         if res.returncode != 0:
-            self.logger.print(f"[NODES] {name}: git pull не удался, пропуск — "
-                        f"{out.splitlines()[-1] if out else 'нет вывода'}")
+            self.logger.print(f"[NODES] {name}: git pull failed, skipping — "
+                        f"{out.splitlines()[-1] if out else 'no output'}")
             return
         if "Already up to date" not in out and "Already up-to-date" not in out:
-            self.logger.print(f"[NODES] {name}: обновлён код ↓")
-        # Всегда переустанавливаем requirements — если venv пересоздан,
-        # пакеты пропали, а `uv pip install` идемпотентен.
+            self.logger.print(f"[NODES] {name}: code updated ↓")
+        # Always reinstall requirements — if venv was recreated,
+        # packages are gone, and `uv pip install` is idempotent.
         req = os.path.join(path, "requirements.txt")
         if os.path.exists(req):
             subprocess.run(
@@ -371,24 +371,24 @@ class ComfyLauncher:
                 capture_output=True, text=True)
 
     def _update_existing_nodes(self, names):
-        """Обновляет (git pull) все ноды из списка, которые уже на диске."""
+        """Updates (git pull) all nodes from the list that are already on disk."""
         nodes_root = f"{COMFY_DIR}/custom_nodes"
         present = [(n, os.path.join(nodes_root, n)) for n in names
                    if os.path.isdir(os.path.join(nodes_root, n))]
         if not present:
             return
-        self.logger.set_status("🔄 Обновляю кастомные ноды...", "#f39c12")
-        self.logger.print(f"[*] Авто-обновление нод (git pull): {len(present)} шт.")
+        self.logger.set_status("🔄 Updating custom nodes...", "#f39c12")
+        self.logger.print(f"[*] Auto-updating nodes (git pull): {len(present)} items")
         for name, path in present:
             try:
                 self._update_node(name, path)
             except Exception as e:
-                self.logger.print(f"[NODES] {name}: ошибка обновления ({e}), пропуск")
-        self.logger.print("[*] Обновление нод завершено")
+                self.logger.print(f"[NODES] {name}: update error ({e}), skipping")
+        self.logger.print("[*] Node update complete")
 
     def _check_nodes(self):
         if not os.path.exists(NODE_INSTALLER):
-            self.logger.print("[!] instal_castom_node.py не найден — пропускаю ноды")
+            self.logger.print("[!] instal_castom_node.py not found — skipping nodes")
             return
         names = self._load_node_names()
         if names is None:
@@ -399,26 +399,26 @@ class ComfyLauncher:
 
         if missing:
             self.logger.set_status(
-                f"⚙️ Доустанавливаю кастомные ноды ({len(missing)})...", "#f39c12")
-            self.logger.print(f"[!] Не хватает нод: {', '.join(missing)} — авто-установка")
+                f"⚙️ Installing missing custom nodes ({len(missing)})...", "#f39c12")
+            self.logger.print(f"[!] Missing nodes: {', '.join(missing)} — auto-installing")
             self.logger.stream_script(NODE_INSTALLER, "NODES",
-                "Запусти вручную: !python instal/instal_castom_node.py")
-            self.logger.print("[*] Кастомные ноды доустановлены и обновлены")
+                "Run manually: !python instal/instal_castom_node.py")
+            self.logger.print("[*] Custom nodes installed and updated")
             return
 
         if AUTO_UPDATE_NODES:
             self._update_existing_nodes(names)
         else:
-            self.logger.print("[*] Кастомные ноды на месте (авто-обновление выключено)")
+            self.logger.print("[*] Custom nodes in place (auto-update disabled)")
 
     def _ensure_symlinks(self):
-        """Создаёт символьные ссылки на модели из SYMLINKS.
+        """Creates model symlinks from SYMLINKS.
 
-        Вызывается всегда, независимо от состояния нод. Ссылки могли
-        не создаться при первой установке, пропасть после рестарта
-        Kaggle, или измениться в датасете.
+        Called always, regardless of node state. Links may not have
+        been created on first install, may have disappeared after a
+        Kaggle restart, or may have changed in the dataset.
         """
-        self.logger.print("  ── Символьные ссылки на модели ──")
+        self.logger.print("  ── Model symlinks ──")
         try:
             import importlib.util
             spec = importlib.util.spec_from_file_location(
@@ -427,13 +427,13 @@ class ComfyLauncher:
             spec.loader.exec_module(mod)
             symlinks = list(getattr(mod, "SYMLINKS", []))
             if not symlinks:
-                self.logger.print("  → SYMLINKS пуст — нет ссылок для создания")
+                self.logger.print("  → SYMLINKS empty — no links to create")
                 return
             created = 0
             for src, dst in symlinks:
                 if not os.path.exists(src):
                     self.logger.print(
-                        f"  → Источник не найден, пропуск: {os.path.basename(src)}")
+                        f"  → Source not found, skipping: {os.path.basename(src)}")
                     continue
                 os.makedirs(os.path.dirname(dst), exist_ok=True)
                 if os.path.islink(dst) or os.path.exists(dst):
@@ -441,38 +441,38 @@ class ComfyLauncher:
                         os.remove(dst)
                     except OSError as e:
                         self.logger.print(
-                            f"  → Не удалось удалить {os.path.basename(dst)}: {e}")
+                            f"  → Could not remove {os.path.basename(dst)}: {e}")
                         continue
                 try:
                     os.symlink(src, dst)
-                    self.logger.print(f"  → Ссылка: {os.path.basename(dst)}")
+                    self.logger.print(f"  → Link: {os.path.basename(dst)}")
                     created += 1
                 except OSError as e:
                     self.logger.print(
-                        f"  → Ошибка symlink {os.path.basename(dst)}: {e}")
-            self.logger.print(f"  → Симлинки: {created}/{len(symlinks)}")
+                        f"  → Symlink error {os.path.basename(dst)}: {e}")
+            self.logger.print(f"  → Symlinks: {created}/{len(symlinks)}")
         except Exception as e:
-            self.logger.print(f"[!] Не удалось создать симлинки: {e}")
+            self.logger.print(f"[!] Could not create symlinks: {e}")
 
-    # --- 2c. nvidia-ml-py вместо pynvml (подавление FutureWarning от torch 2.11) ---
+    # --- 2c. nvidia-ml-py instead of pynvml (suppress FutureWarning from torch 2.11) ---
     def _ensure_nvidia_ml_py(self):
-        """Устанавливает nvidia-ml-py и удаляет pynvml.
+        """Installs nvidia-ml-py and removes pynvml.
 
-        Torch 2.11+ ругается FutureWarning если вместо nvidia-ml-py
-        установлен устаревший pynvml. Бежит каждый запуск.
+        Torch 2.11+ raises FutureWarning if outdated pynvml is installed
+        instead of nvidia-ml-py. Runs every launch.
         """
-        self.logger.print("  ── Проверка nvidia-ml-py (pynvml → nvidia-ml-py) ──")
+        self.logger.print("  ── Checking nvidia-ml-py (pynvml → nvidia-ml-py) ──")
         try:
             r = subprocess.run(
                 ["uv", "pip", "install", "--python", VENV_PYTHON,
                  "-q", "nvidia-ml-py"],
                 capture_output=True, text=True, timeout=30)
             if r.returncode == 0:
-                self.logger.print("  → nvidia-ml-py установлен")
+                self.logger.print("  → nvidia-ml-py installed")
             else:
                 self.logger.print(f"  → nvidia-ml-py: {r.stderr.strip()[:100]}")
         except Exception as e:
-            self.logger.print(f"  → nvidia-ml-py: ошибка ({e})")
+            self.logger.print(f"  → nvidia-ml-py: error ({e})")
 
         try:
             r = subprocess.run(
@@ -480,50 +480,50 @@ class ComfyLauncher:
                  "-q", "pynvml"],
                 capture_output=True, text=True, timeout=15)
             if r.returncode == 0:
-                self.logger.print("  → pynvml удалён")
+                self.logger.print("  → pynvml removed")
             else:
-                self.logger.print("  → pynvml не найден — ок")
+                self.logger.print("  → pynvml not found — OK")
         except Exception as e:
-            self.logger.print(f"  → pynvml: ошибка ({e})")
+            self.logger.print(f"  → pynvml: error ({e})")
 
     # ------------------------------------------------------------------
     # 3. cloudflared
     # ------------------------------------------------------------------
     def _ensure_cloudflared(self):
-        t0 = self._log_step("Шаг 4/6: Cloudflared (туннель)")
+        t0 = self._log_step("Step 4/6: Cloudflared (tunnel)")
 
         url = ("https://github.com/cloudflare/cloudflared/releases/latest/"
                "download/cloudflared-linux-amd64")
         if not os.path.exists(CLOUDFLARED):
-            self.logger.print("  → Не найден — скачиваю...")
+            self.logger.print("  → Not found — downloading...")
             subprocess.run(["wget", "-q", url, "-O", CLOUDFLARED], check=True)
             size_mb = os.path.getsize(CLOUDFLARED) / 1024 / 1024
-            self.logger.print(f"  → Скачан: {size_mb:.1f} MB")
+            self.logger.print(f"  → Downloaded: {size_mb:.1f} MB")
         else:
             size_mb = os.path.getsize(CLOUDFLARED) / 1024 / 1024
-            self.logger.print(f"  → Уже есть: {size_mb:.1f} MB")
+            self.logger.print(f"  → Already exists: {size_mb:.1f} MB")
             if size_mb < 5:
-                self.logger.print("  → Размер подозрительно мал — качаю заново")
+                self.logger.print("  → Size suspiciously small — re-downloading")
                 try:
                     os.remove(CLOUDFLARED)
                 except OSError:
                     pass
                 subprocess.run(["wget", "-q", url, "-O", CLOUDFLARED], check=True)
                 size_mb = os.path.getsize(CLOUDFLARED) / 1024 / 1024
-                self.logger.print(f"  → Скачан: {size_mb:.1f} MB")
+                self.logger.print(f"  → Downloaded: {size_mb:.1f} MB")
 
         os.chmod(CLOUDFLARED, 0o755)
-        self.logger.print("  → Права доступа: 755 (+x)")
+        self.logger.print("  → Permissions: 755 (+x)")
         self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # 4b. SageAttention-SM75 (Turing T4) — кастомная нода attention
+    # 4b. SageAttention-SM75 (Turing T4) — custom attention node
     # ------------------------------------------------------------------
     def _install_sage_attention(self):
-        """Устанавливает SageAttention-SM75-path в venv + custom node.
+        """Installs SageAttention-SM75-path in venv + custom node.
 
-        ВНИМАНИЕ: НЕ РАБОТАЕТ С GGUF-МОДЕЛЯМИ (llama.cpp бэкенд).
-        Оставлен для справки — вызывать только для диффузионных моделей (SD/SDXL/Flux).
+        WARNING: DOES NOT WORK WITH GGUF MODELS (llama.cpp backend).
+        Left for reference — call only for diffusion models (SD/SDXL/Flux).
         """
         try:
             self.sage_ok = sage_installer.install(
@@ -534,24 +534,24 @@ class ComfyLauncher:
             )
             if self.sage_ok:
                 self.logger.print("  → SageAttention-SM75 active — "
-                                  "attention через кастомную ноду T4")
+                                  "attention via T4 custom node")
         except Exception as e:
             self.sage_ok = False
-            self.logger.print(f"  → SageAttention: ошибка установки ({e}), "
-                              "пропуск — SDPA")
+            self.logger.print(f"  → SageAttention: install error ({e}), "
+                              "skipping — using SDPA")
 
     # ------------------------------------------------------------------
-    # 5. Запуск ComfyUI
+    # 5. Launch ComfyUI
     # ------------------------------------------------------------------
     def _start_comfy(self):
-        self._log_step("Шаг 6/7: Запуск ComfyUI", status="⏳ Запуск ComfyUI...")
+        self._log_step("Step 6/7: Launching ComfyUI", status="⏳ Launching ComfyUI...")
         if self.sage_ok:
             self.logger.print("  → Attention: SageAttention-SM75 (T4 custom node)")
         else:
             self.logger.print("  → Attention: torch SDPA (default)")
 
-        # Отключаем comfy-aimdo — на Kaggle его асинхронное чтение файлов
-        # сыпет hostbuf_file_reader_read failed → CUDA illegal memory access.
+        # Disable comfy-aimdo — on Kaggle its async file reading
+        # causes hostbuf_file_reader_read failed → CUDA illegal memory access.
         os.environ["COMFY_AIMDO_ENABLED"] = "0"
 
         comfy_args = [
@@ -561,18 +561,18 @@ class ComfyLauncher:
             "--enable-cors-header", "*",
             "--disable-auto-launch",
             "--preview-method", "auto",
-            # Без флага attention — ComfyUI использует torch SDPA (на torch 2+).
-            # Раньше был --use-split-cross-attention, но на втором проходе
-            # 720p видео вылетает OOM. SDPA эффективнее по памяти на T4.
-            # Если будет OOM-killer (SIGKILL -9) при загрузке модели —
-            # вернуть --use-split-cross-attention.
+            # Without attention flag — ComfyUI uses torch SDPA (on torch 2+).
+            # Previously used --use-split-cross-attention, but on the second pass
+            # 720p video caused OOM. SDPA is more memory-efficient on T4.
+            # If OOM-killer (SIGKILL -9) occurs during model loading —
+            # restore --use-split-cross-attention.
             #
-            # --gpu-only: был добавлен для теста, но вызывает CUDA OOM
-            # (вытеснение из VRAM). Убран.
+            # --gpu-only: added for testing but causes CUDA OOM
+            # (VRAM eviction). Removed.
         ]
 
         cmd_str = " ".join(comfy_args)
-        self.logger.print(f"  → Команда: {cmd_str}")
+        self.logger.print(f"  → Command: {cmd_str}")
 
         self.comfy_proc = subprocess.Popen(
             comfy_args,
@@ -588,144 +588,132 @@ class ComfyLauncher:
                daemon=True).start()
 
     # ------------------------------------------------------------------
-    # 5. Ожидание порта
+    # 5. Wait for port
     # ------------------------------------------------------------------
     def _wait_for_port(self):
         self.logger.print(f"\n{'─'*40}")
-        self.logger.print("  Ожидание запуска ComfyUI...")
+        self.logger.print("  Waiting for ComfyUI to start...")
         start = time.time()
         last_report = 0
         while True:
-            # Сначала проверяем порт — если открыт, ComfyUI работает,
-            # даже если poll() ошибочно вернул код (race condition restart).
+            # First check port — if open, ComfyUI is working,
+            # even if poll() erroneously returned a code (race condition restart).
             try:
                 with socket.create_connection(("127.0.0.1", PORT), timeout=2):
                     break
             except OSError:
                 pass
-            # Только потом проверяем процесс — но только если порт закрыт
+            # Only then check the process — but only if port is closed
             if self.comfy_proc.poll() is not None:
                 raise RuntimeError(
-                    f"ComfyUI завершился с кодом {self.comfy_proc.returncode}")
+                    f"ComfyUI exited with code {self.comfy_proc.returncode}")
             elapsed = time.time() - start
             if elapsed > STARTUP_TIMEOUT:
-                raise RuntimeError(f"Таймаут ({STARTUP_TIMEOUT}с)")
+                raise RuntimeError(f"Timeout ({STARTUP_TIMEOUT}s)")
             if elapsed - last_report >= 10:
-                self.logger.print(f"  ⏳ {elapsed:.0f}с прошло (таймаут {STARTUP_TIMEOUT}с)")
+                self.logger.print(f"  ⏳ {elapsed:.0f}s elapsed (timeout {STARTUP_TIMEOUT}s)")
                 last_report = elapsed
             time.sleep(2)
         elapsed = time.time() - start
-        self.logger.print(f"  ✅ ComfyUI запущен за {elapsed:.1f}с")
-        self.logger.set_status("✅ ComfyUI запущен, поднимаю туннель...", "#27ae60")
+        self.logger.print(f"  ✅ ComfyUI started in {elapsed:.1f}s")
+        self.logger.set_status("✅ ComfyUI running, starting tunnel...", "#27ae60")
 
     # ------------------------------------------------------------------
-    # 6. Cloudflare-туннель + парсинг URL
+    # 6. Cloudflare tunnel + URL parsing
     # ------------------------------------------------------------------
-    def _read_tunnel_output(self, url_found: Event):
-        """Читает stdout туннеля в фоне, ищет URL.
-
-        Вынесено в отдельный поток, чтобы блокирующий readline()
-        не мешал таймауту _start_tunnel().
-        """
-        try:
-            for line in iter(self.tunnel_proc.stdout.readline, ""):
-                if line:
-                    self.logger.print(f"[TUNNEL] {line.rstrip()}")
-                    m = re.search(r"https://[^\s]+trycloudflare\.com", line)
-                    if m:
-                        self.public_url = m.group(0)
-                        url_found.set()
-                if self.tunnel_proc.poll() is not None:
-                    break
-        except (OSError, ValueError):
-            pass
-
     def _start_tunnel(self):
-        self._log_step("Шаг 7/7: Cloudflare Tunnel", status="🔄 Поднимаю туннель...")
+        t0 = self._log_step("Step 6/6: Cloudflare tunnel")
 
-        cmd = [
-            CLOUDFLARED, "tunnel", "--no-autoupdate",
-            "--protocol", "http2",
-            "--url", f"http://127.0.0.1:{PORT}",
-        ]
-        self.logger.print(f"  → Команда: {' '.join(cmd)}")
+        url = f"http://127.0.0.1:{PORT}"
+        self.logger.print(f"  → Target: {url}")
 
         self.tunnel_proc = subprocess.Popen(
-            cmd,
+            [CLOUDFLARED, "tunnel", "--no-autoupdate", "--protocol", "http2",
+             "--url", url],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
         )
-        self.logger.print(f"  → PID: {self.tunnel_proc.pid}")
+        self.logger.print(f"  → cloudflared PID: {self.tunnel_proc.pid}")
 
-        # Читаем stdout туннеля в фоновом потоке — неблокирующий таймаут
-        url_found = Event()
-        reader = Thread(
-            target=self._read_tunnel_output,
-            args=(url_found,),
-            daemon=True,
-        )
-        reader.start()
+        Thread(target=self.logger.stream_process,
+               args=(self.tunnel_proc, "[TUNNEL] "),
+               daemon=True).start()
 
-        # Ждём URL с таймаутом
+        # Parse public URL from cloudflared output
         start = time.time()
-        found = url_found.wait(timeout=URL_TIMEOUT)
-        elapsed = time.time() - start
-
-        if not found and self.tunnel_proc.poll() is not None:
-            raise RuntimeError("Процесс туннеля завершился, URL не получен")
-
-        if self.public_url:
-            self.logger.print(f"  ✅ Туннель получен за {elapsed:.1f}с")
-            self.logger.show_url(self.public_url)
-            self.logger.set_status("✅ ComfyUI доступен!", "#27ae60")
+        while time.time() - start < URL_TIMEOUT:
+            line = self.tunnel_proc.stdout.readline()
+            if not line:
+                if self.tunnel_proc.poll() is not None:
+                    raise RuntimeError("cloudflared exited unexpectedly")
+                continue
+            m = re.search(r"https://[^\s]+trycloudflare\.com", line)
+            if m:
+                self.public_url = m.group(0)
+                break
         else:
-            self.logger.set_status("⚠️ Туннель поднят, но ссылка не найдена — "
-                                   "проверь лог", "#f39c12")
+            raise RuntimeError(f"Timeout ({URL_TIMEOUT}s) waiting for Cloudflare URL")
+
+        self.logger.print(f"  → Public URL: {self.public_url}")
+        self.logger.set_status("✅ ComfyUI ready!", "#27ae60")
+        self.logger.show_url(self.public_url)
+        self._log_elapsed(t0)
 
     # ------------------------------------------------------------------
-    # Завершение процессов
+    # Kill all managed processes
     # ------------------------------------------------------------------
     def _kill_processes(self):
-        for proc in (self.tunnel_proc, self.comfy_proc):
+        for name, proc in [("ComfyUI", self.comfy_proc), ("tunnel", self.tunnel_proc)]:
             if proc and proc.poll() is None:
-                proc.terminate()
+                self.logger.print(f"  → Stopping {name} (PID {proc.pid})...")
                 try:
-                    proc.wait(timeout=8)
+                    proc.terminate()
+                    proc.wait(timeout=10)
                 except subprocess.TimeoutExpired:
                     proc.kill()
-        for pat in ("main.py", "cloudflared"):
-            subprocess.run(["pkill", "-9", "-f", pat], capture_output=True)
+                    proc.wait(timeout=5)
+                except OSError:
+                    pass
+        self.comfy_proc = None
+        self.tunnel_proc = None
+
+        # Kill any leftover processes by pattern
+        for pat in ("main.py", "comfyui", "cloudflared"):
+            try:
+                subprocess.run(["pkill", "-9", "-f", pat], capture_output=True)
+            except OSError:
+                pass
 
     # ------------------------------------------------------------------
-    # Кнопка «Остановить»
+    # Stop button
     # ------------------------------------------------------------------
     def _on_stop(self):
         if self.stopped:
             return
         self.stopped = True
-        self._starting = False       # сброс — чтобы Restart не игнорировался
-        self.logger.set_status("⏳ Останавливаю ComfyUI...", "#f39c12")
+        self._starting = False       # reset — so Restart doesn't get ignored
+        self.logger.set_status("⏳ Stopping ComfyUI...", "#f39c12")
         self.logger.disable_stop_btn()
         self._kill_processes()
         self.logger.hide_url()
-        self.logger.set_status("🛑 ComfyUI остановлен. Нажми «Перезапустить».",
+        self.logger.set_status("🛑 ComfyUI stopped. Press «Restart».",
                                "#e74c3c")
-        self.logger.print("[*] ComfyUI и туннель остановлены.")
+        self.logger.print("[*] ComfyUI and tunnel stopped.")
 
     # ------------------------------------------------------------------
-    # Кнопка «Перезапустить»
+    # Restart button
     # ------------------------------------------------------------------
     def _on_restart(self):
         if self._starting:
             return
-        self._starting = True           # блокируем двойной клик
+        self._starting = True           # block double-click
         self.logger.disable_restart_btn()
-        self.logger.set_status("🔄 Перезапуск ComfyUI...", "#f39c12")
-        self.logger.print("[*] Перезапуск: гашу старые процессы...")
+        self.logger.set_status("🔄 Restarting ComfyUI...", "#f39c12")
+        self.logger.print("[*] Restart: killing old processes...")
         self._kill_processes()
-        # Сброс состояния под новый запуск
+        # Reset state for new launch
         self.stopped = False
         self.public_url = None
         self.comfy_proc = None
@@ -735,15 +723,15 @@ class ComfyLauncher:
         Thread(target=self._startup, daemon=True).start()
 
     # ------------------------------------------------------------------
-    # keep-alive: ячейка активна + pump для кнопок
+    # keep-alive: cell active + pump for buttons
     # ------------------------------------------------------------------
     def _make_kernel_pump(self):
-        """Создаёт pump для обработки событий ядра (on_click кнопок).
+        """Creates a pump for processing kernel events (on_click buttons).
 
-        Использует nest_asyncio, чтобы выполнить корутину
-        kernel.do_one_iteration() из синхронного keep-alive цикла.
+        Uses nest_asyncio to execute the coroutine
+        kernel.do_one_iteration() from the synchronous keep-alive loop.
 
-        Возвращает функцию pump() или None, если не удалось.
+        Returns the pump() function or None if it couldn't be created.
         """
         try:
             import asyncio
@@ -773,18 +761,18 @@ class ComfyLauncher:
             return None
 
     def _keep_alive(self):
-        """Держит ячейку активной — Kaggle не усыпит сессию.
+        """Keeps the cell active — Kaggle won't put the session to sleep.
 
-        В цикле: pump (обработка on_click кнопок) + sleep 0.05с.
-        Останавливается кнопкой «Остановить», «Перезапустить» или ⏹ Interrupt.
+        In loop: pump (button on_click handling) + sleep 0.05s.
+        Stops via "Stop" button, "Restart" button, or ⏹ Interrupt.
         """
         pump = self._make_kernel_pump()
         if pump is None:
             self.logger.print(
-                "[!] Pump не создан — кнопки не работают, "
-                "используй ⏹ Interrupt для остановки.")
-        self.logger.print("[*] keep-alive активен — Kaggle не уснёт. "
-                          "Останови кнопкой в панели или ⏹ (Interrupt).")
+                "[!] Pump not created — buttons won't work, "
+                "use ⏹ Interrupt to stop.")
+        self.logger.print("[*] keep-alive active — Kaggle won't sleep. "
+                          "Stop via panel button or ⏹ (Interrupt).")
         try:
             while not self.stopped:
                 if pump is not None:
@@ -794,8 +782,8 @@ class ComfyLauncher:
                         time.sleep(0.2)
                 time.sleep(0.05)
         except KeyboardInterrupt:
-            self.logger.print("[*] Interrupt — останавливаю ComfyUI "
-                              "и туннель...")
-            # Вызываем on_stop как при нажатии кнопки
+            self.logger.print("[*] Interrupt — stopping ComfyUI "
+                              "and tunnel...")
+            # Call on_stop as if the button was pressed
             self._on_stop()
         self.logger.flush_now()
