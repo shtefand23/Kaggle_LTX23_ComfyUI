@@ -58,9 +58,9 @@ CUSTOM_NODES = {
 }
 
 # ----------------------------------------------------------------------
-# Civitai model download URL (Z Image Turbo AIO — no text encoder/VAE needed).
+# HuggingFace model download URL (Z Image Turbo AIO — no text encoder/VAE needed).
 # ----------------------------------------------------------------------
-CIVITAI_URL = "https://civitai.com/api/download/models/2932204?token=cb6162f8fd04d2818c6ef049625fbd45"
+CIVITAI_URL = "https://huggingface.co/shtefand/stf1/resolve/main/gonzalomoZpop_v40.safetensors"
 CIVITAI_MODEL = "gonzalomoZpop_v40.safetensors"
 
 # ----------------------------------------------------------------------
@@ -175,7 +175,7 @@ def download_civitai_model():
         return
 
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    log(f"Downloading {CIVITAI_MODEL} from Civitai...")
+    log(f"Downloading {CIVITAI_MODEL} from HuggingFace...")
     run([
         "curl", "-L", "-o", dest,
         CIVITAI_URL,
