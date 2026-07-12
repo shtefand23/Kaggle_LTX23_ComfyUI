@@ -637,11 +637,8 @@ class ComfyLauncher:
         )
         self.logger.print(f"  → cloudflared PID: {self.tunnel_proc.pid}")
 
-        Thread(target=self.logger.stream_process,
-               args=(self.tunnel_proc, "[TUNNEL] "),
-               daemon=True).start()
-
         # Parse public URL from cloudflared output
+        # (single reader — no stream_process thread to avoid pipe race)
         start = time.time()
         while time.time() - start < URL_TIMEOUT:
             line = self.tunnel_proc.stdout.readline()
@@ -649,6 +646,7 @@ class ComfyLauncher:
                 if self.tunnel_proc.poll() is not None:
                     raise RuntimeError("cloudflared exited unexpectedly")
                 continue
+            self.logger.print(f"[TUNNEL] {line.rstrip()}")
             m = re.search(r"https://[^\s]+trycloudflare\.com", line)
             if m:
                 self.public_url = m.group(0)
