@@ -177,8 +177,7 @@ def download_civitai_model():
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     log(f"Downloading {CIVITAI_MODEL} from Civitai...")
     run([
-        "wget", "-q", "--show-progress",
-        "-O", dest,
+        "curl", "-L", "-o", dest,
         CIVITAI_URL,
     ], check=True)
     size_gb = os.path.getsize(dest) / 1e9
