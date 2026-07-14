@@ -24,6 +24,7 @@ clear hint. Path/uv/venv logic lives in the shared module kaggle_env.py.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -63,50 +64,70 @@ CUSTOM_NODES = {
 }
 
 # ----------------------------------------------------------------------
-# MODEL SYMLINKS  (source in /kaggle/input -> ComfyUI folder).
-# Dataset: kaggle.com/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf
+# MODEL SYMLINKS  — uses /kaggle/temp/ltx23/ as staging area.
+# First run copies from /kaggle/input/ (dataset) to /kaggle/temp/ (100GB).
+# Subsequent runs skip the copy.
 # ----------------------------------------------------------------------
-DATASET = "/kaggle/input/ltx-2-3-22b-distilled-1-1-q6-k-gguf"
+DATASET_SRC = "/kaggle/input/ltx-2-3-22b-distilled-1-1-q6-k-gguf"
+TEMP_DIR    = "/kaggle/temp/ltx23"
+MODELS_DIR  = os.path.join(TEMP_DIR, "models")
 
-SYMLINKS = [
+# Files to stage (subfolder, filename)
+MODEL_FILES = [
     # ── Text Encoders ──
-    (f"{DATASET}/gemma-3-12b-it-UD-Q5_K_XL.gguf",
-     f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-UD-Q5_K_XL.gguf"),
-
-    (f"{DATASET}/ltx-2.3_text_projection_bf16.safetensors",
-     f"{COMFY_DIR}/models/text_encoders/ltx-2.3_text_projection_bf16.safetensors"),
-
+    ("text_encoders", "gemma-3-12b-it-UD-Q5_K_XL.gguf"),
+    ("text_encoders", "ltx-2.3_text_projection_bf16.safetensors"),
     # ── VAE ──
-    (f"{DATASET}/LTX23_audio_vae_bf16.safetensors",
-     f"{COMFY_DIR}/models/vae/LTX23_audio_vae_bf16.safetensors"),
-
-    (f"{DATASET}/LTX23_video_vae_bf16.safetensors",
-     f"{COMFY_DIR}/models/vae/LTX23_video_vae_bf16.safetensors"),
-
-    (f"{DATASET}/taeltx2_3.safetensors",
-     f"{COMFY_DIR}/models/vae/taeltx2_3.safetensors"),
-
-    # ── Diffusion Models (GGUF) ──
-    (f"{DATASET}/ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
-     f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-Q6_K.gguf"),
-
-    (f"{DATASET}/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf",
-     f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf"),
-
+    ("vae", "LTX23_audio_vae_bf16.safetensors"),
+    ("vae", "LTX23_video_vae_bf16.safetensors"),
+    ("vae", "taeltx2_3.safetensors"),
+    # ── Diffusion Models ──
+    ("diffusion_models", "ltx-2.3-22b-distilled-1.1-Q6_K.gguf"),
+    ("diffusion_models", "ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf"),
     # ── Upscaler ──
-    (f"{DATASET}/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
-     f"{COMFY_DIR}/models/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"),
-
+    ("latent_upscale_models", "ltx-2.3-spatial-upscaler-x2-1.1.safetensors"),
     # ── LoRAs ──
-    (f"{DATASET}/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors",
-     f"{COMFY_DIR}/models/loras/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors"),
-
-    (f"{DATASET}/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors",
-     f"{COMFY_DIR}/models/loras/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors"),
-
-    (f"{DATASET}/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
-     f"{COMFY_DIR}/models/loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"),
+    ("loras", "LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors"),
+    ("loras", "LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors"),
+    ("loras", "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"),
 ]
+
+
+def stage_models():
+    """Copy models from dataset to /kaggle/temp/ (skips if already there)."""
+    step("Stage models to /kaggle/temp/")
+    if not os.path.isdir(DATASET_SRC):
+        warn(f"Dataset not found at {DATASET_SRC} — add it to your Kaggle session")
+        return
+    all_cached = all(
+        os.path.exists(os.path.join(MODELS_DIR, sf, fn))
+        for sf, fn in MODEL_FILES
+    )
+    if all_cached:
+        log("All models cached in /kaggle/temp/ — skipping copy")
+        return
+    for subfolder, filename in MODEL_FILES:
+        src = os.path.join(DATASET_SRC, filename)
+        dst = os.path.join(MODELS_DIR, subfolder, filename)
+        if os.path.exists(dst):
+            log(f"Cached: {filename}")
+            continue
+        if not os.path.exists(src):
+            warn(f"Not in dataset: {filename}")
+            continue
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        print(f"  Copying {filename} ...", end=" ", flush=True)
+        shutil.copy2(src, dst)
+        print("done")
+    log("Models staged")
+
+
+SYMLINKS = []
+for subfolder, filename in MODEL_FILES:
+    SYMLINKS.append((
+        os.path.join(MODELS_DIR, subfolder, filename),
+        os.path.join(COMFY_DIR, "models", subfolder, filename),
+    ))
 
 
 def uv_pip_install_req(req_path):
@@ -209,6 +230,7 @@ def main():
         install_node(name, repo)
 
     step("Model symlinks")
+    stage_models()
     for src, dst in SYMLINKS:
         make_symlink(src, dst)
 
