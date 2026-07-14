@@ -6,11 +6,11 @@ instal_castom_node.py
 STEP 2 of 3. Installs custom nodes and creates symlinks for models
 (like in the original notebook, but without conflicts).
 
-Key change for multi-GPU performance:
-  * Instead of the ComfyBootlegOffload.py hack, the official
-    ComfyUI-MultiGPU (DisTorch2) node is installed. The old gist and
-    DisTorch2 both patch layer offloading and CONFLICT with each other —
-    causing slow generation on two T4s. We keep only ComfyUI-MultiGPU.
+LTX 2.3 video generation workspace with 15+ custom nodes:
+  * ComfyUI-LTX2-MultiGPU — Hybrid Split Loader for LTX 2.3 GGUF on 2×T4
+  * ComfyUI-MultiGPU (DisTorch2) — official multi-GPU support
+  * ComfyUI-VideoHelperSuite — video/audio loading and combining
+  * ComfyUI-GGUF, ComfyUI-KJNodes, rgthree, Easy-Use, Inspire, RIFE, etc.
 
 The node list and model symlink list are at the top — edit them there,
 you add models and nodes manually.
@@ -40,37 +40,33 @@ from kaggle_env import (
 # Add/remove nodes right here.
 # ----------------------------------------------------------------------
 CUSTOM_NODES = {
-    "ComfyUI-Crystools":  "https://github.com/crystian/ComfyUI-Crystools.git",
-    "ComfyUI-GGUF":       "https://github.com/city96/ComfyUI-GGUF.git",
-    "ComfyUI-Logic":      "https://github.com/theUpsider/ComfyUI-Logic.git",
-    "comfy-image-saver":  "https://github.com/giriss/comfy-image-saver.git",
-    # Official multi-GPU node (DisTorch2). Replaces ComfyBootlegOffload.py.
-    "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
-    # KJNodes — large set of utility nodes (masks, latents, pipelines, etc.).
-    "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
-    # FL-CosyVoice3 — speech synthesis/cloning (TTS) inside ComfyUI graph.
-    "ComfyUI_FL-CosyVoice3": "https://github.com/filliptm/ComfyUI_FL-CosyVoice3.git",
-    # Ltx 2.3 Director
-    "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
-    # LTX2 MultiGPU — author node by THE-ANGEL-AI.
-    # Custom-built from scratch: Hybrid Split Loader for LTX 2.3 GGUF on 2×T4 (Kaggle).
+    # ── Core LTX 2.3 ──
     "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
+    "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
+    # ── Multi-GPU + Utilities ──
+    "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
+    "ComfyUI-GGUF":       "https://github.com/city96/ComfyUI-GGUF.git",
+    "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
+    "ComfyUI-Crystools":  "https://github.com/crystian/ComfyUI-Crystools.git",
+    # ── Video / Audio ──
+    "ComfyUI-VideoHelperSuite": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
+    "ComfyUI-RIFE":       "https://github.com/Fannovel16/comfyui-rife.git",
+    # ── UI / Workflow ──
+    "rgthree-comfy":      "https://github.com/rgthree/rgthree-comfy.git",
+    "ComfyUI-Easy-Use":   "https://github.com/yayap-gm/ComfyUI-Easy-Use.git",
+    "ComfyUI-Inspire":    "https://github.com/ltdrdata/ComfyUI-Inspire-Pack.git",
+    "cg-use-everywhere":  "https://github.com/cg123/comfyui-nodes-docs.git",
+    # ── Preprocessors ──
+    "comfyui_controlnet_aux": "https://github.com/Fannovel16/comfyui_controlnet_aux.git",
+    # ── Impact Pack ──
+    "ComfyUI-Impact-Pack": "https://github.com/ltdrdata/ComfyUI-Impact-Pack.git",
 }
-
-# Z Image Turbo AIO — from Kaggle dataset (symlink, no download).
-# ----------------------------------------------------------------------
-ZPOP_MODEL_SRC = "/kaggle/input/datasets/martasteiner/myzitc/gonzalomoZpop_v40.safetensors"
-ZPOP_MODEL_DST = f"{COMFY_DIR}/models/checkpoints/gonzalomoZpop_v40.safetensors"
 
 # ----------------------------------------------------------------------
 # MODEL SYMLINKS  (source in /kaggle/input -> ComfyUI folder).
-# This is your section: change paths for your datasets/models.
 # ----------------------------------------------------------------------
 SYMLINKS = [
-    # Z Image Turbo AIO
-    (ZPOP_MODEL_SRC, ZPOP_MODEL_DST),
-
-    # (Ltx 2.3 video)
+    # ── LTX 2.3 Video ──
     ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/gemma-3-12b-it-UD-Q5_K_XL.gguf",
      f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-UD-Q5_K_XL.gguf"),
 
