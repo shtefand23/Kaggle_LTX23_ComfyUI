@@ -76,20 +76,12 @@ MODELS_DIR  = os.path.join(TEMP_DIR, "models")
 MODEL_FILES = [
     # ── Text Encoders ──
     ("text_encoders", "gemma-3-12b-it-UD-Q5_K_XL.gguf"),
-    ("text_encoders", "ltx-2.3_text_projection_bf16.safetensors"),
+    ("text_encoders", "ltx-2.3-22b-distilled_embeddings_connectors.safetensors"),
     # ── VAE ──
-    ("vae", "LTX23_audio_vae_bf16.safetensors"),
-    ("vae", "LTX23_video_vae_bf16.safetensors"),
-    ("vae", "taeltx2_3.safetensors"),
+    ("vae", "ltx-2.3-22b-distilled_audio_vae.safetensors"),
+    ("vae", "ltx-2.3-22b-distilled_video_vae.safetensors"),
     # ── Diffusion Models ──
     ("diffusion_models", "ltx-2.3-22b-distilled-1.1-Q6_K.gguf"),
-    ("diffusion_models", "ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf"),
-    # ── Upscaler ──
-    ("latent_upscale_models", "ltx-2.3-spatial-upscaler-x2-1.1.safetensors"),
-    # ── LoRAs ──
-    ("loras", "LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors"),
-    ("loras", "LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors"),
-    ("loras", "ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"),
 ]
 
 
