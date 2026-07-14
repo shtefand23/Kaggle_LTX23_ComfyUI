@@ -68,7 +68,7 @@ CUSTOM_NODES = {
 # First run copies from /kaggle/input/ (dataset) to /kaggle/temp/ (100GB).
 # Subsequent runs skip the copy.
 # ----------------------------------------------------------------------
-DATASET_SRC = "/kaggle/input/ltx-2-3-22b-distilled-1-1-q6-k-gguf"
+DATASET_SRC = "/kaggle/input/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf"
 TEMP_DIR    = "/kaggle/temp/ltx23"
 MODELS_DIR  = os.path.join(TEMP_DIR, "models")
 
