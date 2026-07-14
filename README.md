@@ -6,7 +6,7 @@ One-click ComfyUI setup for **LTX 2.3 video generation** on Kaggle with dual T4 
 
 1. Create a new Kaggle notebook
 2. Enable **GPU × 2** (Settings → Accelerator → 2× GPU)
-3. Add the LTX 2.3 model dataset to your session
+3. Add [this dataset](https://www.kaggle.com/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf) to your session
 4. Paste this in a code cell:
 
 ```python
@@ -45,12 +45,15 @@ print_status("Auto-update built-in...")
   - `ComfyUI-RIFE` — Frame interpolation
   - And more (see `instal/instal_castom_node.py` for full list)
 
-## Models (from Kaggle dataset)
+## Models (from [Kaggle dataset](https://www.kaggle.com/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf))
 
 - `ltx-2.3-22b-distilled-1.1-Q6_K.gguf` — LTX 2.3 22B GGUF (diffusion model)
-- `ltx-2.3_text_projection_bf16.safetensors` — Text encoder
+- `ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf` — LTX 2.3 22B GGUF Q5 (lighter)
+- `gemma-3-12b-it-UD-Q5_K_XL.gguf` — Gemma 3 12B text encoder (GGUF)
+- `ltx-2.3_text_projection_bf16.safetensors` — Text projection
 - `LTX23_video_vae_bf16.safetensors` — Video VAE
 - `LTX23_audio_vae_bf16.safetensors` — Audio VAE
+- `taeltx2_3.safetensors` — Alternative VAE
 - `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` — Spatial upscaler
 - Various LoRAs (talking head, NFT, IC-LoRA)
 
