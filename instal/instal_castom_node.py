@@ -50,12 +50,12 @@ CUSTOM_NODES = {
     "ComfyUI-Crystools":  "https://github.com/crystian/ComfyUI-Crystools.git",
     # ── Video / Audio ──
     "ComfyUI-VideoHelperSuite": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
-    "ComfyUI-RIFE":       "https://github.com/Fannovel16/comfyui-rife.git",
+    "ComfyUI-RIFE":       "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git",
     # ── UI / Workflow ──
     "rgthree-comfy":      "https://github.com/rgthree/rgthree-comfy.git",
-    "ComfyUI-Easy-Use":   "https://github.com/yayap-gm/ComfyUI-Easy-Use.git",
+    "ComfyUI-Easy-Use":   "https://github.com/yolain/ComfyUI-Easy-Use.git",
     "ComfyUI-Inspire":    "https://github.com/ltdrdata/ComfyUI-Inspire-Pack.git",
-    "cg-use-everywhere":  "https://github.com/cg123/comfyui-nodes-docs.git",
+
     # ── Preprocessors ──
     "comfyui_controlnet_aux": "https://github.com/Fannovel16/comfyui_controlnet_aux.git",
     # ── Impact Pack ──
