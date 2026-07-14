@@ -64,41 +64,48 @@ CUSTOM_NODES = {
 
 # ----------------------------------------------------------------------
 # MODEL SYMLINKS  (source in /kaggle/input -> ComfyUI folder).
+# Dataset: kaggle.com/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf
 # ----------------------------------------------------------------------
+DATASET = "/kaggle/input/ltx-2-3-22b-distilled-1-1-q6-k-gguf"
+
 SYMLINKS = [
-    # ── LTX 2.3 Video ──
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/gemma-3-12b-it-UD-Q5_K_XL.gguf",
+    # ── Text Encoders ──
+    (f"{DATASET}/gemma-3-12b-it-UD-Q5_K_XL.gguf",
      f"{COMFY_DIR}/models/text_encoders/gemma-3-12b-it-UD-Q5_K_XL.gguf"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3_text_projection_bf16.safetensors",
+    (f"{DATASET}/ltx-2.3_text_projection_bf16.safetensors",
      f"{COMFY_DIR}/models/text_encoders/ltx-2.3_text_projection_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX23_audio_vae_bf16.safetensors",
+    # ── VAE ──
+    (f"{DATASET}/LTX23_audio_vae_bf16.safetensors",
      f"{COMFY_DIR}/models/vae/LTX23_audio_vae_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX23_video_vae_bf16.safetensors",
+    (f"{DATASET}/LTX23_video_vae_bf16.safetensors",
      f"{COMFY_DIR}/models/vae/LTX23_video_vae_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/taeltx2_3.safetensors",
+    (f"{DATASET}/taeltx2_3.safetensors",
      f"{COMFY_DIR}/models/vae/taeltx2_3.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
+    # ── Diffusion Models (GGUF) ──
+    (f"{DATASET}/ltx-2.3-22b-distilled-1.1-Q6_K.gguf",
      f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-Q6_K.gguf"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf",
+    (f"{DATASET}/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf",
      f"{COMFY_DIR}/models/diffusion_models/ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
+    # ── Upscaler ──
+    (f"{DATASET}/ltx-2.3-spatial-upscaler-x2-1.1.safetensors",
      f"{COMFY_DIR}/models/latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors",
+    # ── LoRAs ──
+    (f"{DATASET}/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors",
      f"{COMFY_DIR}/models/loras/LTX-2.3-22b-AV-LoRA-talking-head-v1.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors",
+    (f"{DATASET}/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors",
      f"{COMFY_DIR}/models/loras/LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors"),
 
-    ("/kaggle/input/models/theangel/ltx-2-3/other/default/5/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
-     f"{COMFY_DIR}/models/loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors")
+    (f"{DATASET}/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors",
+     f"{COMFY_DIR}/models/loras/ltx-2.3-22b-ic-lora-ingredients-0.9.safetensors"),
 ]
 
 
