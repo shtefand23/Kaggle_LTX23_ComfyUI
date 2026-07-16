@@ -1,12 +1,12 @@
-# 🎬 LTX 2.3 ComfyUI — Kaggle Workspace (2×T4 GPU)
+# 🎬 LTX 2.3 Director V2 Beta — Kaggle Workspace (2×T4 GPU)
 
-One-click ComfyUI setup for **LTX 2.3 video generation** on Kaggle with dual T4 GPUs.
+One-click ComfyUI setup for **LTX 2.3 Director V2 Beta** on Kaggle with dual T4 GPUs.
 
 ## Quick Start
 
 1. Create a new Kaggle notebook
 2. Enable **GPU × 2** (Settings → Accelerator → 2× GPU)
-3. Add [this dataset](https://www.kaggle.com/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf) to your session
+3. Add [this dataset](https://www.kaggle.com/datasets/martasteiner/ltxdirector) to your session (all 19 models)
 4. Paste this in a code cell:
 
 ```python
@@ -30,6 +30,7 @@ print_status("Auto-update built-in...")
 
 | Workflow | Description |
 |----------|-------------|
+| `LTX_Director-V2-Beta.json` | LTX Director V2 Beta — full featured video generation |
 | `LTX23Legacy.json` | Standard LTX 2.3 video generation with audio support |
 | `LTX23LTXDirector13.json` | LTX Director v1.3 — guided video with reference images |
 | `LTX23LTXDirector2.json` | LTX Director v2 — advanced guided video generation |
@@ -37,27 +38,50 @@ print_status("Auto-update built-in...")
 ## What Gets Installed
 
 - **ComfyUI** + ComfyUI-Manager
-- **15 custom nodes** including:
+- **16 custom nodes** including:
   - `ComfyUI-LTX2-MultiGPU` — Hybrid Split Loader for LTX 2.3 GGUF on 2×T4
   - `ComfyUI-MultiGPU` — Official DisTorch2 multi-GPU support
   - `ComfyUI-VideoHelperSuite` — Video/audio loading and combining
   - `ComfyUI-GGUF` — GGUF model loading
   - `ComfyUI-RIFE` — Frame interpolation
+  - `ComfyUI-AcademiaSD` — Auto model downloader
   - And more (see `instal/instal_castom_node.py` for full list)
 
-## Models (from [Kaggle dataset](https://www.kaggle.com/datasets/martasteiner/ltx-2-3-22b-distilled-1-1-q6-k-gguf))
+## Models (from [Kaggle dataset](https://www.kaggle.com/datasets/martasteiner/ltxdirector))
 
-- `ltx-2.3-22b-distilled-1.1-Q6_K.gguf` — LTX 2.3 22B GGUF (diffusion model)
-- `ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf` — LTX 2.3 22B GGUF Q5 (lighter)
-- `gemma-3-12b-it-UD-Q5_K_XL.gguf` — Gemma 3 12B text encoder (GGUF)
-- `ltx-2.3_text_projection_bf16.safetensors` — Text projection
-- `LTX23_video_vae_bf16.safetensors` — Video VAE
-- `LTX23_audio_vae_bf16.safetensors` — Audio VAE
-- `taeltx2_3.safetensors` — Alternative VAE
-- `ltx-2.3-spatial-upscaler-x2-1.1.safetensors` — Spatial upscaler
-- Various LoRAs (talking head, NFT, IC-LoRA)
+### Diffusion Models
+- `ltx-2.3-22b-distilled-1.1_transformer_only_fp8_scaled.safetensors` (23.49 GB)
+- `ltx-2.3-22b-distilled-1.1-UD-Q5_K_M.gguf` (16.96 GB, lighter alternative)
+
+### Text Encoders
+- `gemma_3_12B_it_fp8_scaled.safetensors` (12.3 GB)
+- `ltx-2.3_text_projection_bf16.safetensors` (2.15 GB)
+
+### VAE
+- `LTX23_video_vae_bf16.safetensors`
+- `LTX23_audio_vae_bf16.safetensors`
+- `taeltx2_3.safetensors`
+
+### Upscaler
+- `ltx-2.3-spatial-upscaler-x2-1.1.safetensors`
+
+### LoRAs
+- `ltx-2.3-22b-distilled-1.1_lora-dynamic_fro09_avg_rank_111_bf16.safetensors`
+- `LTX-2.3-OmniNFT-RL-Lora_bf16.safetensors`
+
+### IC LoRAs
+- `ltx-2.3-22b-ic-lora-cross-eyed-0.9.safetensors`
+- `ltx-2.3-22b-ic-lora-motion-track-control-ref0.5.safetensors`
+- `ltx-2-19b-ic-lora-detailer.safetensors`
+- `lora_weights_step_12000.safetensors`
+- `ltx2.3_upscale_ic-lora_06250.safetensors`
+- `ltx-2.3-22b-ic-lora-lipdub-0.9.safetensors`
+- `ltx2.3_audio_reactive_lora_v2.safetensors`
+- `ltx-2.3-22b-ic-lora-hdr-0.9.safetensors`
+- `ltx-2.3-22b-ic-lora-decompression-0.9.safetensors`
 
 ## Credits
 
 - [THE-ANGEL-AI](https://github.com/THE-ANGEL-AI/Kaggle_Workspace) — Original workspace
+- [WhatDreamsCost](https://www.youtube.com/@WhatDreamsCost/) — LTX Director V2 Beta workflow
 - [LTX 2.3](https://github.com/Lightricks/LTX-Video) — Video generation model
