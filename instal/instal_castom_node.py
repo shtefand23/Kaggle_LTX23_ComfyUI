@@ -33,6 +33,9 @@ CUSTOM_NODES = {
     "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
     # ── Official LTX Video nodes (required by WhatDreamsCost) ──
     "ComfyUI-LTXVideo":   "https://github.com/Lightricks/ComfyUI-LTXVideo.git",
+    # ── Multi-GPU support ──
+    "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
+    "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
     # ── Model downloader ──
     "comfyui_AcademiaSD": "https://github.com/AcademiaSD/comfyui_AcademiaSD.git",
     # ── Utilities used by workflow ──
