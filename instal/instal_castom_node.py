@@ -186,6 +186,15 @@ def main():
     for src, dst in SYMLINKS:
         make_symlink(src, dst)
 
+    # Alias: workflow expects gemma-3-12b-it-heretic-fp4-comfy.safetensors
+    # but we have gemma_3_12B_it_fp8_scaled.safetensors — symlink alias
+    gemma_src = os.path.join(DATASET_SRC, "gemma_3_12B_it_fp8_scaled.safetensors")
+    gemma_dst = os.path.join(COMFY_DIR, "models", "text_encoders",
+                             "gemma-3-12b-it-heretic-fp4-comfy.safetensors")
+    if os.path.exists(gemma_src) and not os.path.exists(gemma_dst):
+        make_symlink(gemma_src, gemma_dst)
+        log("Alias: gemma FP8 → heretic-fp4-comfy")
+
     copy_workflows()
 
     log("DONE. Nodes, models and workflows in place. Now run: %run instal/start.py")
