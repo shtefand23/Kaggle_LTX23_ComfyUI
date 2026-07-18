@@ -48,8 +48,6 @@ CUSTOM_NODES = {
 # Dataset: martasteiner/ltxdirector (all 19 models)
 # ----------------------------------------------------------------------
 DATASET_SRC = "/kaggle/input/datasets/martasteiner/ltxdirector"
-TEMP_DIR    = "/kaggle/temp/ltx23"
-MODELS_DIR  = os.path.join(TEMP_DIR, "models")
 
 # All 19 model files: (subfolder, filename)
 MODEL_FILES = [
@@ -83,38 +81,18 @@ MODEL_FILES = [
 
 
 def stage_models():
-    """Copy models from dataset to /kaggle/temp/ (skips if already there)."""
-    step("Stage models to /kaggle/temp/")
+    """No-op — symlinks point directly to /kaggle/input/ (Kaggle extracts dataset automatically)."""
+    step("Check dataset")
     if not os.path.isdir(DATASET_SRC):
         warn(f"Dataset not found at {DATASET_SRC} — add it to your Kaggle session")
         return
-    all_cached = all(
-        os.path.exists(os.path.join(MODELS_DIR, sf, fn))
-        for sf, fn in MODEL_FILES
-    )
-    if all_cached:
-        log("All models cached in /kaggle/temp/ — skipping copy")
-        return
-    for subfolder, filename in MODEL_FILES:
-        src = os.path.join(DATASET_SRC, filename)
-        dst = os.path.join(MODELS_DIR, subfolder, filename)
-        if os.path.exists(dst):
-            log(f"Cached: {filename}")
-            continue
-        if not os.path.exists(src):
-            warn(f"Not in dataset: {filename}")
-            continue
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        print(f"  Copying {filename} ...", end=" ", flush=True)
-        shutil.copy2(src, dst)
-        print("done")
-    log("Models staged")
+    log(f"Dataset found at {DATASET_SRC} — symlinks will point here directly")
 
 
 SYMLINKS = []
 for subfolder, filename in MODEL_FILES:
     SYMLINKS.append((
-        os.path.join(MODELS_DIR, subfolder, filename),
+        os.path.join(DATASET_SRC, filename),
         os.path.join(COMFY_DIR, "models", subfolder, filename),
     ))
 
