@@ -29,27 +29,15 @@ from kaggle_env import (
 # CUSTOM NODE LIST  (name -> git repository).
 # ----------------------------------------------------------------------
 CUSTOM_NODES = {
-    # ── Core LTX 2.3 ──
-    "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
+    # ── LTX Director V2 Beta (required) ──
     "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
-    # ── Multi-GPU + Utilities ──
-    "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
-    "ComfyUI-GGUF":       "https://github.com/city96/ComfyUI-GGUF.git",
+    # ── Official LTX Video nodes (required by WhatDreamsCost) ──
+    "ComfyUI-LTXVideo":   "https://github.com/Lightricks/ComfyUI-LTXVideo.git",
+    # ── Model downloader ──
+    "comfyui_AcademiaSD": "https://github.com/AcademiaSD/comfyui_AcademiaSD.git",
+    # ── Utilities used by workflow ──
     "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
-    "ComfyUI-Crystools":  "https://github.com/crystian/ComfyUI-Crystools.git",
-    # ── Video / Audio ──
     "ComfyUI-VideoHelperSuite": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
-    "ComfyUI-RIFE":       "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git",
-    # ── UI / Workflow ──
-    "rgthree-comfy":      "https://github.com/rgthree/rgthree-comfy.git",
-    "ComfyUI-Easy-Use":   "https://github.com/yolain/ComfyUI-Easy-Use.git",
-    "ComfyUI-Inspire":    "https://github.com/ltdrdata/ComfyUI-Inspire-Pack.git",
-    # ── Preprocessors ──
-    "comfyui_controlnet_aux": "https://github.com/Fannovel16/comfyui_controlnet_aux.git",
-    # ── Impact Pack ──
-    "ComfyUI-Impact-Pack": "https://github.com/ltdrdata/ComfyUI-Impact-Pack.git",
-    # ── Academia SD Downloader ──
-    "ComfyUI-AcademiaSD": "https://github.com/ComfyUI-AcademiaSD/ComfyUI-AcademiaSD.git",
 }
 
 # ----------------------------------------------------------------------
