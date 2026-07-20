@@ -355,7 +355,7 @@
           ]
         }
       ],
-      "title": "Декодирование VAE",
+      "title": "VAE Decoding",
       "properties": {
         "proxyWidgets": [],
         "cnr_id": "comfy-core",
@@ -828,7 +828,7 @@
           ]
         }
       ],
-      "title": "Загрузчик моделей и лор",
+      "title": "Model and LoRA Loader",
       "properties": {
         "proxyWidgets": [
           [
@@ -947,7 +947,7 @@
           ]
         }
       ],
-      "title": "Семплер №1",
+      "title": "Sampler #1",
       "properties": {
         "proxyWidgets": [
           [
@@ -1107,7 +1107,7 @@
           ]
         }
       ],
-      "title": "Семплер №2",
+      "title": "Sampler #2",
       "properties": {
         "proxyWidgets": [
           [
@@ -1447,7 +1447,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Загрузчик моделей и лор",
+        "name": "Model and LoRA Loader",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -1475,7 +1475,7 @@
             "linkIds": [
               1099
             ],
-            "localized_name": "МОДЕЛЬ",
+            "localized_name": "MODEL",
             "pos": [
               24,
               24
@@ -1586,7 +1586,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "МОДЕЛЬ",
+                "localized_name": "MODEL",
                 "name": "MODEL",
                 "type": "MODEL",
                 "links": [
@@ -1632,7 +1632,7 @@
             "inputs": [],
             "outputs": [
               {
-                "localized_name": "МОДЕЛЬ",
+                "localized_name": "MODEL",
                 "name": "MODEL",
                 "type": "MODEL",
                 "links": [
@@ -1946,7 +1946,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Семплер №1",
+        "name": "Sampler #1",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -1973,7 +1973,7 @@
             "linkIds": [
               60
             ],
-            "localized_name": "шум",
+            "localized_name": "noise",
             "pos": [
               51,
               24
@@ -2054,7 +2054,7 @@
               1055,
               1056
             ],
-            "localized_name": "положительный",
+            "localized_name": "positive",
             "pos": [
               51,
               144
@@ -2067,7 +2067,7 @@
             "linkIds": [
               1063
             ],
-            "localized_name": "частота_кадров",
+            "localized_name": "frame_rate",
             "pos": [
               51,
               164
@@ -2095,7 +2095,7 @@
             "linkIds": [
               66
             ],
-            "localized_name": "выход",
+            "localized_name": "output",
             "pos": [
               24,
               24
@@ -2148,31 +2148,31 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "шум",
+                "localized_name": "noise",
                 "name": "noise",
                 "type": "NOISE",
                 "link": 60
               },
               {
-                "localized_name": "гид",
+                "localized_name": "guide",
                 "name": "guider",
                 "type": "GUIDER",
                 "link": 61
               },
               {
-                "localized_name": "сэмплер",
+                "localized_name": "sampler",
                 "name": "sampler",
                 "type": "SAMPLER",
                 "link": 62
               },
               {
-                "localized_name": "сигмы",
+                "localized_name": "sigmas",
                 "name": "sigmas",
                 "type": "SIGMAS",
                 "link": 63
               },
               {
-                "localized_name": "латентное_изображение",
+                "localized_name": "latent_image",
                 "name": "latent_image",
                 "type": "LATENT",
                 "link": 64
@@ -2180,7 +2180,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "выход",
+                "localized_name": "output",
                 "name": "output",
                 "type": "LATENT",
                 "links": [
@@ -2188,13 +2188,13 @@
                 ]
               },
               {
-                "localized_name": "выход без шума",
+                "localized_name": "denoised_output",
                 "name": "denoised_output",
                 "type": "LATENT",
                 "links": []
               }
             ],
-            "title": "Пурвый семплер",
+            "title": "First Sampler",
             "properties": {
               "cnr_id": "comfy-core",
               "ver": "0.3.60",
@@ -2229,19 +2229,19 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "модель",
+                "localized_name": "model",
                 "name": "model",
                 "type": "MODEL",
                 "link": 1092
               },
               {
-                "localized_name": "положительный",
+                "localized_name": "positive",
                 "name": "positive",
                 "type": "CONDITIONING",
                 "link": 1086
               },
               {
-                "localized_name": "отрицательный",
+                "localized_name": "negative",
                 "name": "negative",
                 "type": "CONDITIONING",
                 "link": 1088
@@ -2249,7 +2249,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "ГИД",
+                "localized_name": "GUIDE",
                 "name": "GUIDER",
                 "type": "GUIDER",
                 "links": [
@@ -2294,7 +2294,7 @@
             "inputs": [],
             "outputs": [
               {
-                "localized_name": "СЭМПЛЕР",
+                "localized_name": "SAMPLER",
                 "name": "SAMPLER",
                 "type": "SAMPLER",
                 "links": [
@@ -2338,7 +2338,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "модель",
+                "localized_name": "model",
                 "name": "model",
                 "type": "MODEL",
                 "link": 1091
@@ -2346,7 +2346,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "СИГМЫ",
+                "localized_name": "SIGMAS",
                 "name": "SIGMAS",
                 "type": "SIGMAS",
                 "links": [
@@ -2513,19 +2513,19 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "положительный",
+                "localized_name": "positive",
                 "name": "positive",
                 "type": "CONDITIONING",
                 "link": 1055
               },
               {
-                "localized_name": "отрицательный",
+                "localized_name": "negative",
                 "name": "negative",
                 "type": "CONDITIONING",
                 "link": 1034
               },
               {
-                "localized_name": "частота_кадров",
+                "localized_name": "frame_rate",
                 "name": "frame_rate",
                 "type": "FLOAT",
                 "widget": {
@@ -2536,7 +2536,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "положительный",
+                "localized_name": "positive",
                 "name": "positive",
                 "type": "CONDITIONING",
                 "links": [
@@ -2544,7 +2544,7 @@
                 ]
               },
               {
-                "localized_name": "отрицательный",
+                "localized_name": "negative",
                 "name": "negative",
                 "type": "CONDITIONING",
                 "links": [
@@ -2588,7 +2588,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "условие",
+                "localized_name": "condition",
                 "name": "conditioning",
                 "type": "CONDITIONING",
                 "link": 1056
@@ -2596,7 +2596,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "КОНДИЦИОНИРОВАНИЕ",
+                "localized_name": "CONDITIONING",
                 "name": "CONDITIONING",
                 "type": "CONDITIONING",
                 "links": [
@@ -2880,7 +2880,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Семплер №2",
+        "name": "Sampler #2",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -2907,7 +2907,7 @@
             "linkIds": [
               33
             ],
-            "localized_name": "шум",
+            "localized_name": "noise",
             "pos": [
               51,
               24
@@ -3014,7 +3014,7 @@
             "linkIds": [
               1150
             ],
-            "localized_name": "модель увеличения",
+            "localized_name": "upscale_model",
             "pos": [
               51,
               184
@@ -3069,31 +3069,31 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "шум",
+                "localized_name": "noise",
                 "name": "noise",
                 "type": "NOISE",
                 "link": 33
               },
               {
-                "localized_name": "гид",
+                "localized_name": "guide",
                 "name": "guider",
                 "type": "GUIDER",
                 "link": 34
               },
               {
-                "localized_name": "сэмплер",
+                "localized_name": "sampler",
                 "name": "sampler",
                 "type": "SAMPLER",
                 "link": 35
               },
               {
-                "localized_name": "сигмы",
+                "localized_name": "sigmas",
                 "name": "sigmas",
                 "type": "SIGMAS",
                 "link": 36
               },
               {
-                "localized_name": "латентное_изображение",
+                "localized_name": "latent_image",
                 "name": "latent_image",
                 "type": "LATENT",
                 "link": 37
@@ -3101,7 +3101,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "выход",
+                "localized_name": "output",
                 "name": "output",
                 "type": "LATENT",
                 "links": [
@@ -3109,7 +3109,7 @@
                 ]
               },
               {
-                "localized_name": "выход без шума",
+                "localized_name": "denoised_output",
                 "name": "denoised_output",
                 "type": "LATENT",
                 "links": []
@@ -3149,19 +3149,19 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "модель",
+                "localized_name": "model",
                 "name": "model",
                 "type": "MODEL",
                 "link": 1078
               },
               {
-                "localized_name": "положительный",
+                "localized_name": "positive",
                 "name": "positive",
                 "type": "CONDITIONING",
                 "link": 1072
               },
               {
-                "localized_name": "отрицательный",
+                "localized_name": "negative",
                 "name": "negative",
                 "type": "CONDITIONING",
                 "link": 1074
@@ -3169,7 +3169,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "ГИД",
+                "localized_name": "GUIDE",
                 "name": "GUIDER",
                 "type": "GUIDER",
                 "links": [
@@ -3214,7 +3214,7 @@
             "inputs": [],
             "outputs": [
               {
-                "localized_name": "СЭМПЛЕР",
+                "localized_name": "SAMPLER",
                 "name": "SAMPLER",
                 "type": "SAMPLER",
                 "links": [
@@ -3258,7 +3258,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "модель",
+                "localized_name": "model",
                 "name": "model",
                 "type": "MODEL",
                 "link": 1077
@@ -3266,7 +3266,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "СИГМЫ",
+                "localized_name": "SIGMAS",
                 "name": "SIGMAS",
                 "type": "SIGMAS",
                 "links": [
@@ -3743,13 +3743,13 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "образцы",
+                "localized_name": "samples",
                 "name": "samples",
                 "type": "LATENT",
                 "link": 158
               },
               {
-                "localized_name": "модель увеличения",
+                "localized_name": "upscale_model",
                 "name": "upscale_model",
                 "type": "LATENT_UPSCALE_MODEL",
                 "link": 1150
@@ -3763,7 +3763,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "ЛАТЕНТНЫЙ",
+                "localized_name": "LATENT",
                 "name": "LATENT",
                 "type": "LATENT",
                 "links": [
@@ -4052,7 +4052,7 @@
         },
         "revision": 0,
         "config": {},
-        "name": "Декодирование VAE",
+        "name": "VAE Decoding",
         "inputNode": {
           "id": -10,
           "bounding": [
@@ -4079,7 +4079,7 @@
             "linkIds": [
               1173
             ],
-            "localized_name": "образцы",
+            "localized_name": "samples",
             "pos": [
               51,
               24
@@ -4134,7 +4134,7 @@
             "linkIds": [
               1140
             ],
-            "localized_name": "ИЗОБРАЖЕНИЕ",
+            "localized_name": "IMAGE",
             "pos": [
               24,
               24
@@ -4175,7 +4175,7 @@
             "mode": 0,
             "inputs": [
               {
-                "localized_name": "образцы",
+                "localized_name": "samples",
                 "name": "samples",
                 "type": "LATENT",
                 "link": 1173
@@ -4189,7 +4189,7 @@
             ],
             "outputs": [
               {
-                "localized_name": "ИЗОБРАЖЕНИЕ",
+                "localized_name": "IMAGE",
                 "name": "IMAGE",
                 "type": "IMAGE",
                 "links": [

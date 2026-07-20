@@ -29,18 +29,17 @@ from kaggle_env import (
 # CUSTOM NODE LIST  (name -> git repository).
 # ----------------------------------------------------------------------
 CUSTOM_NODES = {
-    # ── LTX Director V2 Beta (required) ──
+    # ── Core LTX Director V2 Beta ──
     "WhatDreamsCost-ComfyUI": "https://github.com/WhatDreamsCost/WhatDreamsCost-ComfyUI.git",
-    # ── Official LTX Video nodes (required by WhatDreamsCost) ──
     "ComfyUI-LTXVideo":   "https://github.com/Lightricks/ComfyUI-LTXVideo.git",
-    # ── Multi-GPU support ──
-    "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
+    # ── Multi-GPU (DisTorch2) ──
     "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
-    # ── Model downloader ──
-    "comfyui_AcademiaSD": "https://github.com/AcademiaSD/comfyui_AcademiaSD.git",
-    # ── Utilities used by workflow ──
+    "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
+    # ── Utilities ──
     "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
     "ComfyUI-VideoHelperSuite": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
+    "ComfyUI-GGUF":       "https://github.com/city96/ComfyUI-GGUF.git",
+    "ComfyUI-Crystools":  "https://github.com/crystian/ComfyUI-Crystools.git",
 }
 
 # ----------------------------------------------------------------------
