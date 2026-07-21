@@ -35,6 +35,8 @@ CUSTOM_NODES = {
     # ── Multi-GPU (DisTorch2) ──
     "ComfyUI-MultiGPU":   "https://github.com/pollockjj/ComfyUI-MultiGPU.git",
     "ComfyUI-LTX2-MultiGPU": "https://github.com/THE-ANGEL-AI/ComfyUI-LTX2-MultiGPU.git",
+    # ── AcademiaSD downloader ──
+    "comfyui_AcademiaSD": "https://github.com/AcademiaSD/comfyui_AcademiaSD.git",
     # ── Utilities ──
     "ComfyUI-KJNodes":    "https://github.com/kijai/ComfyUI-KJNodes.git",
     "ComfyUI-VideoHelperSuite": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
